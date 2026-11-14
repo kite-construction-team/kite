@@ -1,5 +1,6 @@
 {
   "$schema": "https://kite.local/schemas/pool.v1.json",
+  "configVersion": "1.0",
   "id": "default-pool",
   "name": "Default Application Pool",
   "desiredState": "Started",

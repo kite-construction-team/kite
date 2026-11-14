@@ -223,7 +223,8 @@ public sealed class FileSystemConfigMonitor : IAsyncDisposable
                     KiteJsonContext.Default.ServerConfig,
                     cancellationToken).ConfigureAwait(false);
 
-                if (loadedServer is not null && hash is not null)
+                if (loadedServer is not null && hash is not null &&
+                    KiteConfigVersion.IsSupported(loadedServer.ConfigVersion))
                 {
                     if (!_fileHashes.TryGetValue(_layout.ServerConfigPath, out string? oldHash) || oldHash != hash)
                     {
@@ -251,7 +252,8 @@ public sealed class FileSystemConfigMonitor : IAsyncDisposable
                         KiteJsonContext.Default.ApplicationPoolConfig,
                         cancellationToken).ConfigureAwait(false);
 
-                    if (pool is not null && hash is not null)
+                    if (pool is not null && hash is not null &&
+                        KiteConfigVersion.IsSupported(pool.ConfigVersion))
                     {
                         pools[pool.Id] = pool;
                         if (!_fileHashes.TryGetValue(file, out string? oldHash) || oldHash != hash)
@@ -280,7 +282,8 @@ public sealed class FileSystemConfigMonitor : IAsyncDisposable
                         KiteJsonContext.Default.SiteConfig,
                         cancellationToken).ConfigureAwait(false);
 
-                    if (site is not null && hash is not null)
+                    if (site is not null && hash is not null &&
+                        KiteConfigVersion.IsSupported(site.ConfigVersion))
                     {
                         sites[site.Id] = site;
                         if (!_fileHashes.TryGetValue(file, out string? oldHash) || oldHash != hash)

@@ -1,5 +1,6 @@
 {
   "$schema": "https://kite.local/schemas/server.v1.json",
+  "configVersion": "1.0",
   "serverName": "Kite-Production-Node",
   "maxConcurrentConnections": 100000,
   "maxRequestBodySize": 30000000,

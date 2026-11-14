@@ -1,4 +1,6 @@
 {
+  "$schema": "https://kite.local/schemas/site.v1.json",
+  "configVersion": "1.0",
   "id": "sample-node-api",
   "name": "node-api.local",
   "desiredState": "Started",

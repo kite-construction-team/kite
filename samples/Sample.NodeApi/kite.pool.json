@@ -1,4 +1,6 @@
 {
+  "$schema": "https://kite.local/schemas/pool.v1.json",
+  "configVersion": "1.0",
   "id": "node-pool",
   "name": "Node.js Out-of-Process Pool",
   "desiredState": "Started",

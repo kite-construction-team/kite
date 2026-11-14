@@ -47,7 +47,8 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
    - **Application Pool (`config/pools/<id>.json`)**: Owns *OS process & scaling concerns* — `workerCount`, `minWorkers`/`maxWorkers`, `useUnixDomainSocket`, `startMode` (`AlwaysRunning`/`OnDemand`), `gcMode` (`DatasServer`/`Server`/`Workstation`), `environmentVariables`, `recycling`, and `sidecars`.
    - Every site (`rootApplication.poolId`) and nested application points to a Pool ID.
 
-3. **Pure JSON, CamelCase, String Enums, Instant Hot-Reload**:
+3. **Locked Config Schema (`"configVersion": "1.0"`), CamelCase JSON & Instant Hot-Reload**:
+   - Every `config/server.json`, `config/pools/*.json`, and `config/sites/*.json` file is locked to `"configVersion": "1.0"` (enforced by generated v1 JSON Schemas, `KiteManagementService`, `FileSystemConfigMonitor`, and `kite validate`).
    - All JSON uses **camelCase** keys and **string enums** (e.g., `"Started"`, `"OutOfProcessProxy"`, `"Http01"`). Trailing commas and `//` comments are tolerated on read.
    - Every save writes atomically (`.tmp` + rename) and triggers a `FileSystemWatcher` + SHA-256 hash check, hot-reloading Kite's pipeline, pools, and listeners—while automatically saving a restore point in `config/.history/`.
 
@@ -126,6 +127,8 @@ Copy the ready-made configs from the sample folders straight into `<KITE_HOME>/c
 ### Minimal Static Site (`config/sites/static-docs.json`)
 ```json
 {
+  "$schema": "../schemas/site.v1.schema.json",
+  "configVersion": "1.0",
   "id": "static-docs",
   "name": "Static & SPA Docs",
   "desiredState": "Started",
@@ -221,6 +224,8 @@ Kite gives you **three dynamic workload models** (`hostingMode`), mixable across
 **Pool (`config/pools/python-autoscale-pool.json`)**:
 ```json
 {
+  "$schema": "../schemas/pool.v1.schema.json",
+  "configVersion": "1.0",
   "id": "python-autoscale-pool",
   "name": "Python FastAPI Autoscale Pool",
   "desiredState": "Started",
@@ -264,6 +269,8 @@ Kite gives you **three dynamic workload models** (`hostingMode`), mixable across
 **Site (`config/sites/fastapi-site.json`)**:
 ```json
 {
+  "$schema": "../schemas/site.v1.schema.json",
+  "configVersion": "1.0",
   "id": "fastapi-site",
   "name": "FastAPI Service",
   "desiredState": "Started",
@@ -305,6 +312,8 @@ Define backend pools once in **`config/server.json` → `upstreams`**, then atta
 ```json
 // Inside config/server.json
 {
+  "$schema": "./schemas/server.v1.schema.json",
+  "configVersion": "1.0",
   "upstreams": [
     {
       "id": "orders-v1",
@@ -405,6 +414,8 @@ Kite terminates TLS with Kestrel using `CertificateProvider`, selecting a certif
 In `config/sites/<id>.json`:
 ```json
 {
+  "$schema": "../schemas/site.v1.schema.json",
+  "configVersion": "1.0",
   "id": "secure-app",
   "name": "Production HTTPS Site",
   "desiredState": "Started",

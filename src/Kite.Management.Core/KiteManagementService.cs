@@ -413,6 +413,7 @@ public sealed class KiteManagementService
     public async ValueTask SaveServerConfigAsync(ServerConfig config, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(config);
+        KiteConfigVersion.EnsureSupported(config.ConfigVersion, "config/server.json");
         await CapturePreSaveSnapshotIfExistingAsync(_layout.ServerConfigPath, "Update server.json", "server", "server", ct).ConfigureAwait(false);
         await AtomicJsonStore.WriteAtomicAsync(
             _layout.ServerConfigPath,
@@ -425,6 +426,7 @@ public sealed class KiteManagementService
     public async ValueTask SavePoolConfigAsync(ApplicationPoolConfig pool, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(pool);
+        KiteConfigVersion.EnsureSupported(pool.ConfigVersion, $"config/pools/{pool.Id}.json");
         string poolPath = _layout.GetPoolConfigPath(pool.Id);
         await CapturePreSaveSnapshotIfExistingAsync(poolPath, $"Update pool '{pool.Id}'", "pool", pool.Id, ct).ConfigureAwait(false);
         await AtomicJsonStore.WriteAtomicAsync(
@@ -466,6 +468,7 @@ public sealed class KiteManagementService
     public async ValueTask SaveSiteConfigAsync(SiteConfig site, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(site);
+        KiteConfigVersion.EnsureSupported(site.ConfigVersion, $"config/sites/{site.Id}.json");
         string sitePath = _layout.GetSiteConfigPath(site.Id);
         await CapturePreSaveSnapshotIfExistingAsync(sitePath, $"Update site '{site.Id}'", "site", site.Id, ct).ConfigureAwait(false);
         await AtomicJsonStore.WriteAtomicAsync(

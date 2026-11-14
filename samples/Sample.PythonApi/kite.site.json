@@ -1,4 +1,6 @@
 {
+  "$schema": "https://kite.local/schemas/site.v1.json",
+  "configVersion": "1.0",
   "id": "sample-python-api",
   "name": "python-api.local",
   "desiredState": "Started",

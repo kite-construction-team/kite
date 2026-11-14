@@ -1,5 +1,6 @@
 {
   "$schema": "https://kite.local/schemas/site.v1.json",
+  "configVersion": "1.0",
   "id": "default-site",
   "name": "Default Web Site",
   "desiredState": "Started",

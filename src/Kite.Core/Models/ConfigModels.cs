@@ -84,10 +84,29 @@ public enum AccessLogFormat
     Both
 }
 
+public static class KiteConfigVersion
+{
+    public const string Current = "1.0";
+
+    public static bool IsSupported(string? version) =>
+        string.Equals(version?.Trim(), Current, StringComparison.Ordinal);
+
+    public static void EnsureSupported(string? version, string resourceLabel)
+    {
+        if (!IsSupported(version))
+        {
+            throw new InvalidDataException(
+                $"Unsupported configVersion '{version ?? "<missing>"}' in {resourceLabel}. Expected '{Current}'.");
+        }
+    }
+}
+
 public sealed class ServerConfig
 {
     [JsonPropertyName("$schema")]
     public string Schema { get; set; } = "https://kite.local/schemas/server.v1.json";
+
+    public string ConfigVersion { get; set; } = KiteConfigVersion.Current;
 
     public string ServerName { get; set; } = "Kite-Production-Node";
     public int MaxConcurrentConnections { get; set; } = 100_000;
@@ -136,6 +155,8 @@ public sealed class ApplicationPoolConfig
     [JsonPropertyName("$schema")]
     public string Schema { get; set; } = "https://kite.local/schemas/pool.v1.json";
 
+    public string ConfigVersion { get; set; } = KiteConfigVersion.Current;
+
     public string Id { get; set; } = "default-pool";
     public string Name { get; set; } = "Default Application Pool";
     public DesiredResourceState DesiredState { get; set; } = DesiredResourceState.Started;
@@ -181,6 +202,8 @@ public sealed class SiteConfig
 {
     [JsonPropertyName("$schema")]
     public string Schema { get; set; } = "https://kite.local/schemas/site.v1.json";
+
+    public string ConfigVersion { get; set; } = KiteConfigVersion.Current;
 
     public string Id { get; set; } = "default-site";
     public string Name { get; set; } = "Default Web Site";

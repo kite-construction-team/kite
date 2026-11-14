@@ -119,13 +119,34 @@ public static class KiteCliRunner
 
     private static async Task<int> ValidateConfigAsync(KiteHomeLayout layout, TextWriter output, TextWriter error, CancellationToken ct)
     {
+        var versionErrors = new List<string>();
+        await ValidateJsonVersionOnDiskAsync(layout.ServerConfigPath, "config/server.json", versionErrors, ct).ConfigureAwait(false);
+        if (Directory.Exists(layout.PoolsConfigDirectory))
+        {
+            foreach (string file in Directory.EnumerateFiles(layout.PoolsConfigDirectory, "*.json"))
+            {
+                await ValidateJsonVersionOnDiskAsync(file, $"config/pools/{Path.GetFileName(file)}", versionErrors, ct).ConfigureAwait(false);
+            }
+        }
+        if (Directory.Exists(layout.SitesConfigDirectory))
+        {
+            foreach (string file in Directory.EnumerateFiles(layout.SitesConfigDirectory, "*.json"))
+            {
+                await ValidateJsonVersionOnDiskAsync(file, $"config/sites/{Path.GetFileName(file)}", versionErrors, ct).ConfigureAwait(false);
+            }
+        }
+
         ConfigSnapshot snapshot = await LoadSnapshotOnceAsync(layout, ct).ConfigureAwait(false);
         var table = new HostRouteTable(snapshot.Sites.Values, snapshot.Server);
 
-        await output.WriteLineAsync($"Validated server='{snapshot.Server.ServerName}', pools={snapshot.Pools.Count}, sites={snapshot.Sites.Count}, upstreams={snapshot.Server.Upstreams.Count}.").ConfigureAwait(false);
+        await output.WriteLineAsync($"Validated server='{snapshot.Server.ServerName}', configVersion={KiteConfigVersion.Current}, pools={snapshot.Pools.Count}, sites={snapshot.Sites.Count}, upstreams={snapshot.Server.Upstreams.Count}.").ConfigureAwait(false);
 
-        if (table.BindingConflicts.Count > 0)
+        if (versionErrors.Count > 0 || table.BindingConflicts.Count > 0)
         {
+            foreach (string err in versionErrors)
+            {
+                await error.WriteLineAsync($"Version Error: {err}").ConfigureAwait(false);
+            }
             foreach (string conflict in table.BindingConflicts)
             {
                 await error.WriteLineAsync($"Conflict: {conflict}").ConfigureAwait(false);
@@ -133,8 +154,40 @@ public static class KiteCliRunner
             return 2;
         }
 
-        await output.WriteLineAsync("Configuration is VALID (0 conflicts).").ConfigureAwait(false);
+        await output.WriteLineAsync($"Configuration is VALID (0 conflicts) [configVersion={KiteConfigVersion.Current}].").ConfigureAwait(false);
         return 0;
+    }
+
+    private static async Task ValidateJsonVersionOnDiskAsync(string path, string label, List<string> errors, CancellationToken ct)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using System.Text.Json.JsonDocument doc = await System.Text.Json.JsonDocument.ParseAsync(fs, new System.Text.Json.JsonDocumentOptions
+            {
+                AllowTrailingCommas = true,
+                CommentHandling = System.Text.Json.JsonCommentHandling.Skip
+            }, ct).ConfigureAwait(false);
+
+            if (!doc.RootElement.TryGetProperty("configVersion", out System.Text.Json.JsonElement verEl) ||
+                verEl.ValueKind != System.Text.Json.JsonValueKind.String ||
+                !KiteConfigVersion.IsSupported(verEl.GetString()))
+            {
+                string actual = verEl.ValueKind == System.Text.Json.JsonValueKind.Undefined
+                    ? "<missing>"
+                    : verEl.ToString();
+                errors.Add($"{label}: expected 'configVersion': \"{KiteConfigVersion.Current}\", found '{actual}'.");
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"{label}: invalid JSON ({ex.Message}).");
+        }
     }
 
     private static async Task<int> ReloadConfigAsync(KiteHomeLayout layout, TextWriter output, CancellationToken ct)

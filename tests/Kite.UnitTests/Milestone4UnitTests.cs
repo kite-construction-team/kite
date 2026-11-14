@@ -271,6 +271,51 @@ public sealed class Milestone4UnitTests
         Assert.Contains("GET /unit-trace", capturedBody);
     }
 
+    [Fact]
+    public async Task KiteConfigVersion_IsLockedTo1_0_OnModelsSavesAndFileReload()
+    {
+        var server = new ServerConfig();
+        var pool = new ApplicationPoolConfig();
+        var site = new SiteConfig();
+        Assert.Equal("1.0", server.ConfigVersion);
+        Assert.Equal("1.0", pool.ConfigVersion);
+        Assert.Equal("1.0", site.ConfigVersion);
+
+        string serverJson = JsonSerializer.Serialize(server, KiteJsonContext.Default.ServerConfig);
+        string poolJson = JsonSerializer.Serialize(pool, KiteJsonContext.Default.ApplicationPoolConfig);
+        string siteJson = JsonSerializer.Serialize(site, KiteJsonContext.Default.SiteConfig);
+        Assert.Contains("\"configVersion\": \"1.0\"", serverJson);
+        Assert.Contains("\"configVersion\": \"1.0\"", poolJson);
+        Assert.Contains("\"configVersion\": \"1.0\"", siteJson);
+
+        string tempHome = Path.Combine(Path.GetTempPath(), "kite_ver_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var layout = new KiteHomeLayout(tempHome);
+            await using var monitor = new FileSystemConfigMonitor(layout);
+            await monitor.InitializeAndStartAsync(seedDefaultsIfEmpty: true);
+            string originalName = monitor.CurrentSnapshot.Server.ServerName;
+
+            var mgmt = new KiteManagementService(layout);
+            await Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await mgmt.SaveServerConfigAsync(new ServerConfig { ConfigVersion = "2.0" }));
+            await Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await mgmt.SaveRawConfigJsonAsync(null, "{\"configVersion\":\"2.0\",\"serverName\":\"Bad\"}"));
+
+            string badDiskServer = serverJson.Replace("\"configVersion\": \"1.0\"", "\"configVersion\": \"2.0\"")
+                .Replace(originalName, "Rejected-V2");
+            await File.WriteAllTextAsync(layout.ServerConfigPath, badDiskServer);
+            await monitor.ReloadIfChangedAsync();
+
+            Assert.Equal("1.0", monitor.CurrentSnapshot.Server.ConfigVersion);
+            Assert.Equal(originalName, monitor.CurrentSnapshot.Server.ServerName);
+        }
+        finally
+        {
+            try { Directory.Delete(tempHome, recursive: true); } catch { }
+        }
+    }
+
     private sealed class CaptureHandler(Action<string> onPost) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

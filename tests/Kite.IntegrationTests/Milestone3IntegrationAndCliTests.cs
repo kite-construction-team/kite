@@ -205,6 +205,20 @@ public sealed class Milestone3IntegrationAndCliTests
 
             using JsonDocument doc = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(schemaOut, "server.v1.schema.json")));
             Assert.Equal("object", doc.RootElement.GetProperty("type").GetString());
+            Assert.Equal(
+                "1.0",
+                doc.RootElement.GetProperty("properties").GetProperty("configVersion").GetProperty("const").GetString());
+
+            // Modifying configVersion away from "1.0" must fail CLI validation with exit code 2.
+            string siteFile = Path.Combine(tempHome, "config", "sites", "default-site.json");
+            string badSiteJson = (await File.ReadAllTextAsync(siteFile)).Replace("\"configVersion\": \"1.0\"", "\"configVersion\": \"2.0\"");
+            await File.WriteAllTextAsync(siteFile, badSiteJson);
+
+            outWriter.GetStringBuilder().Clear();
+            errWriter.GetStringBuilder().Clear();
+            int badValCode = await KiteCliRunner.ExecuteAsync(["validate", "--home", tempHome], outWriter, errWriter);
+            Assert.Equal(2, badValCode);
+            Assert.Contains("Version Error", errWriter.ToString());
         }
         finally
         {
