@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Quic;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Kite.Core.Models;
@@ -60,6 +61,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
     private KiteRequestPipeline _pipeline;
     private WebApplication? _kestrelApp;
     private HashSet<string> _boundEndpointsSignature = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<int, int> _activePortRemaps = new Dictionary<int, int>();
     private ITimer? _maintenanceAndStateTimer;
     private bool _enableKestrelListeners;
     private bool _disposed;
@@ -112,6 +114,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
     public string? MeshDirectHttpUrl => _meshCoordinator.DirectHttpUrl;
     public IReadOnlyList<string> MeshHostedDomains => _meshCoordinator.LocalHostedDomains;
     public IReadOnlyList<string> MeshPeerRoutes => _meshCoordinator.PeerRoutesSummary;
+    public IReadOnlyDictionary<int, int> ActivePortRemaps => _activePortRemaps;
 
     public ApplicationPoolSupervisor? GetPoolSupervisor(string poolId) =>
         _pools.TryGetValue(poolId, out ApplicationPoolSupervisor? pool) ? pool : null;
@@ -202,7 +205,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
 
             // 2. Reconcile Edge Mesh leadership/peer role and atomically swap the lock-free HostRouteTable
             await _meshCoordinator.ReconcileAsync(snapshot, ct).ConfigureAwait(false);
-            IEnumerable<SiteConfig> effectiveSites = _meshCoordinator.BuildEffectiveSitesForRouting(snapshot);
+            IEnumerable<SiteConfig> effectiveSites = _meshCoordinator.BuildEffectiveSitesForRouting(snapshot, _activePortRemaps);
             var nextRouteTable = new HostRouteTable(effectiveSites, snapshot.Server);
             Interlocked.Exchange(ref _routeTable, nextRouteTable);
 
@@ -280,7 +283,12 @@ public sealed class KiteServerEngine : IAsyncDisposable
 
             foreach (SiteBindingConfig b in site.Bindings)
             {
-                string display = b.ToDisplayEndpoint();
+                int effectivePort = _activePortRemaps.TryGetValue(b.Port, out int remappedPort)
+                    ? remappedPort
+                    : b.Port;
+                string display = effectivePort == b.Port
+                    ? b.ToDisplayEndpoint()
+                    : $"{b.Protocol}://{b.IpAddress}:{effectivePort} ({(string.IsNullOrEmpty(b.Host) ? "*" : b.Host)})";
                 if (siteStarted)
                 {
                     activeBindingStrings.Add(display);
@@ -289,7 +297,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
                 bool isHttps = string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase);
                 bindingStatuses.Add(new BindingRuntimeStatus
                 {
-                    Endpoint = $"{b.IpAddress}:{b.Port}",
+                    Endpoint = $"{b.IpAddress}:{effectivePort}",
                     Protocol = b.Protocol,
                     Host = b.Host,
                     IsListening = siteStarted,
@@ -409,7 +417,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
             serverStatus,
             KiteJsonContext.Default.ServerStatus,
             ct).ConfigureAwait(false);
-        await _meshCoordinator.UpdateRegistrationAsync(snapshot, ct).ConfigureAwait(false);
+        await _meshCoordinator.UpdateRegistrationAsync(snapshot, ct, _activePortRemaps).ConfigureAwait(false);
 
         // 4. Flush pending W3C access logs and FREB traces
         await FlushW3CLogsAsync(now, ct).ConfigureAwait(false);
@@ -527,13 +535,56 @@ public sealed class KiteServerEngine : IAsyncDisposable
             }
         }
 
-        _boundEndpointsSignature = desiredSignature;
+        _activePortRemaps = new Dictionary<int, int>();
         if (listenerMap.Count == 0)
         {
+            _boundEndpointsSignature = desiredSignature;
             return;
         }
 
         bool quicSupported = snapshot.Server.Transport.EnableHttp3 && QuicListener.IsSupported;
+        WebApplication app = BuildKestrelWebApplication(snapshot, listenerMap, quicSupported);
+        try
+        {
+            await app.StartAsync(ct).ConfigureAwait(false);
+            _kestrelApp = app;
+            _boundEndpointsSignature = desiredSignature;
+        }
+        catch (Exception ex) when (
+            _meshCoordinator.Role != InstanceRole.MeshPeer &&
+            IsPortBindConflictOrPermissionDenied(ex) &&
+            TryBuildFallbackListenerMap(listenerMap, out Dictionary<(string IpKey, int Port), (bool IsHttps, bool AllowHttp3)> remappedListeners, out Dictionary<int, int> portRemaps))
+        {
+            try
+            {
+                await app.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+
+            _activePortRemaps = portRemaps;
+            foreach (var (origPort, fallbackPort) in portRemaps.OrderBy(static kv => kv.Key))
+            {
+                Console.Error.WriteLine($"[Kite] Port {origPort} unavailable (busy or blocked by OS permissions); falling back to port {fallbackPort}.");
+            }
+
+            IEnumerable<SiteConfig> remappedSites = _meshCoordinator.BuildEffectiveSitesForRouting(snapshot, _activePortRemaps);
+            var remappedRouteTable = new HostRouteTable(remappedSites, snapshot.Server);
+            Interlocked.Exchange(ref _routeTable, remappedRouteTable);
+
+            WebApplication fallbackApp = BuildKestrelWebApplication(snapshot, remappedListeners, quicSupported);
+            await fallbackApp.StartAsync(ct).ConfigureAwait(false);
+            _kestrelApp = fallbackApp;
+            _boundEndpointsSignature = desiredSignature;
+        }
+    }
+
+    private WebApplication BuildKestrelWebApplication(
+        ConfigSnapshot snapshot,
+        Dictionary<(string IpKey, int Port), (bool IsHttps, bool AllowHttp3)> listenerMap,
+        bool quicSupported)
+    {
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
@@ -687,9 +738,127 @@ public sealed class KiteServerEngine : IAsyncDisposable
         WebApplication app = builder.Build();
         app.UseWebSockets();
         app.Run(ctx => _pipeline.ExecuteAsync(ctx));
+        return app;
+    }
 
-        await app.StartAsync(ct).ConfigureAwait(false);
-        _kestrelApp = app;
+    private static bool TryBuildFallbackListenerMap(
+        Dictionary<(string IpKey, int Port), (bool IsHttps, bool AllowHttp3)> original,
+        out Dictionary<(string IpKey, int Port), (bool IsHttps, bool AllowHttp3)> remapped,
+        out Dictionary<int, int> portRemaps)
+    {
+        portRemaps = new Dictionary<int, int>();
+        var standardPortsPresent = new HashSet<int>();
+        foreach ((string ipKey, int port) in original.Keys)
+        {
+            if (port is 80 or 443)
+            {
+                standardPortsPresent.Add(port);
+                if (!CanBindTcpEndpoint(ipKey, port))
+                {
+                    portRemaps[port] = port == 80 ? 8080 : 8443;
+                }
+            }
+        }
+
+        if (standardPortsPresent.Count == 0)
+        {
+            remapped = [];
+            return false;
+        }
+
+        // If TCP probing did not pinpoint which standard port failed (e.g., QUIC/UDP 443 bind failure),
+        // fall back any standard privileged ports present in the listener map.
+        if (portRemaps.Count == 0)
+        {
+            foreach (int p in standardPortsPresent)
+            {
+                portRemaps[p] = p == 80 ? 8080 : 8443;
+            }
+        }
+
+        remapped = new Dictionary<(string IpKey, int Port), (bool IsHttps, bool AllowHttp3)>();
+        foreach (var ((ipKey, port), value) in original)
+        {
+            int targetPort = portRemaps.TryGetValue(port, out int alt) ? alt : port;
+            var key = (ipKey, targetPort);
+            if (!remapped.TryGetValue(key, out var existing))
+            {
+                remapped[key] = value;
+            }
+            else
+            {
+                remapped[key] = (existing.IsHttps || value.IsHttps, existing.AllowHttp3 || value.AllowHttp3);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsPortBindConflictOrPermissionDenied(Exception exception)
+    {
+        var queue = new Queue<Exception>();
+        queue.Enqueue(exception);
+        while (queue.Count > 0)
+        {
+            Exception current = queue.Dequeue();
+            if (current is SocketException se &&
+                (se.SocketErrorCode == SocketError.AddressAlreadyInUse || se.SocketErrorCode == SocketError.AccessDenied))
+            {
+                return true;
+            }
+
+            if (current is UnauthorizedAccessException)
+            {
+                return true;
+            }
+
+            if (string.Equals(current.GetType().Name, "AddressInUseException", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (current is AggregateException agg)
+            {
+                foreach (Exception inner in agg.InnerExceptions)
+                {
+                    queue.Enqueue(inner);
+                }
+            }
+            else if (current.InnerException is not null)
+            {
+                queue.Enqueue(current.InnerException);
+            }
+        }
+
+        return false;
+    }
+
+    private static bool CanBindTcpEndpoint(string ipKey, int port)
+    {
+        TcpListener? probe = null;
+        try
+        {
+            probe = ipKey != "*" && IPAddress.TryParse(ipKey, out IPAddress? parsedIp)
+                ? new TcpListener(parsedIp, port)
+                : TcpListener.Create(port);
+            probe.ExclusiveAddressUse = true;
+            probe.Start();
+            return true;
+        }
+        catch (SocketException se) when (
+            se.SocketErrorCode == SocketError.AddressAlreadyInUse ||
+            se.SocketErrorCode == SocketError.AccessDenied)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        finally
+        {
+            try { probe?.Stop(); } catch { }
+        }
     }
 
     private static string NormalizeBindIpKey(string? ipAddress)

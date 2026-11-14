@@ -417,8 +417,8 @@ public sealed class FileSystemConfigMonitor : IAsyncDisposable
                             <h1>Welcome to Kite Web Server</h1>
                             <p>This default site is actively served by the <code>Kite.Server</code> Kestrel Multi-Binding Engine over HTTP/1.1 &amp; HTTP/2.</p>
                             <ul>
-                                <li>HTTP Binding: <code>http://localhost:8080</code></li>
-                                <li>HTTPS / TLS (SNI + ALPN) Binding: <code>https://localhost:8443</code></li>
+                                <li>HTTP Binding: <code>http://localhost</code> (port 80)</li>
+                                <li>HTTPS / TLS (SNI + ALPN) Binding: <code>https://localhost</code> (port 443)</li>
                             </ul>
                         </div>
                     </body>
@@ -434,12 +434,12 @@ public sealed class FileSystemConfigMonitor : IAsyncDisposable
                 DesiredState = DesiredResourceState.Started,
                 Bindings =
                 [
-                    new SiteBindingConfig { Protocol = "http", IpAddress = "*", Port = 8080, Host = "*" },
+                    new SiteBindingConfig { Protocol = "http", IpAddress = "*", Port = 80, Host = "*" },
                     new SiteBindingConfig
                     {
                         Protocol = "https",
                         IpAddress = "*",
-                        Port = 8443,
+                        Port = 443,
                         Host = "localhost",
                         Tls = new SiteTlsConfig { UseSelfSignedDevelopmentCert = true, AllowHttp2 = true }
                     }

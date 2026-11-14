@@ -139,7 +139,7 @@ public enum MeshMode
 public sealed class MeshConfig
 {
     public MeshMode Mode { get; set; } = MeshMode.Auto;
-    public List<int> FrontDoorPorts { get; set; } = [8080, 8443];
+    public List<int> FrontDoorPorts { get; set; } = [80, 443, 8080, 8443];
     public string AutoDomainSuffix { get; set; } = ".localhost";
     public string? RegistryDirectoryOverride { get; set; }
 }
@@ -236,7 +236,7 @@ public sealed class SiteBindingConfig
 {
     public string Protocol { get; set; } = "http";
     public string IpAddress { get; set; } = "*";
-    public int Port { get; set; } = 8080;
+    public int Port { get; set; } = 80;
     public string Host { get; set; } = "*";
     public SiteTlsConfig? Tls { get; set; }
 

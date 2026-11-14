@@ -109,6 +109,11 @@ public static class KiteCliRunner
         await engine.StartAsync(seedDefaultsIfEmpty: true, ct).ConfigureAwait(false);
         string domainsLabel = engine.MeshHostedDomains.Count > 0 ? string.Join(", ", engine.MeshHostedDomains) : "*";
         await output.WriteLineAsync($"Kite.Server running (id={engine.InstanceId}, role={engine.MeshRole}, home={layout.RootDirectory}, hosts=[{domainsLabel}]).").ConfigureAwait(false);
+        if (engine.ActivePortRemaps.Count > 0)
+        {
+            string remapSummary = string.Join(", ", engine.ActivePortRemaps.OrderBy(static kv => kv.Key).Select(static kv => $"{kv.Key}->{kv.Value}"));
+            await output.WriteLineAsync($"  Port fallback active ({remapSummary}) because privileged port(s) were in use or blocked by OS permissions.").ConfigureAwait(false);
+        }
         if (engine.MeshRole == InstanceRole.MeshPeer && !string.IsNullOrWhiteSpace(engine.MeshDirectHttpUrl))
         {
             await output.WriteLineAsync($"  Joined local edge mesh as peer on {engine.MeshDirectHttpUrl} (routed by leader on front-door ports).").ConfigureAwait(false);

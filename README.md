@@ -60,7 +60,7 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
 5. **Your Trial-and-Error Lifesavers (Run these before guessing)**:
    ```bash
    dotnet run --project src/Kite.Cli -- validate --home ./kite-data
-   dotnet run --project src/Kite.Cli -- route-test https://api.example.com:8443/v1/users --home ./kite-data
+   dotnet run --project src/Kite.Cli -- route-test https://api.example.com/v1/users --home ./kite-data
    dotnet run --project src/Kite.Cli -- history --home ./kite-data
    dotnet run --project src/Kite.Cli -- rollback <snapshotId> --home ./kite-data
    dotnet run --project src/Kite.Cli -- logs --site default-site --tail --home ./kite-data
@@ -77,7 +77,7 @@ dotnet build Kite.slnx
 dotnet run --project src/Kite.Desktop.WinForms
 ```
 - Uses zero-port WebView2 (`http://kite.localhost`) backed directly by `KiteInMemoryHost`.
-- On first boot, seeds `kite-data/config/server.json`, `config/pools/default-pool.json`, and `config/sites/default-site.json` listening on HTTP `:8080` and HTTPS `:8443` (with a dev certificate).
+- On first boot, seeds `kite-data/config/server.json`, `config/pools/default-pool.json`, and `config/sites/default-site.json` listening on standard HTTP `:80` and HTTPS `:443` (with a dev certificate). If `:80` or `:443` is busy (e.g., IIS/nginx) or blocked by OS privileges, Kite automatically falls back to `:8080` / `:8443` and prints the active fallback mapping.
 - Manage Sites, Pools, Raw JSON / 17 Feature Modules, Live Worker Stdout, Config History, Legacy Config Imports, and the Pipeline Debugger visually.
 
 ![Kite Manager Studio — Dashboard & Live Telemetry](./docs/images/studio-dashboard.png)
@@ -137,7 +137,7 @@ Copy the ready-made configs from the sample folders straight into `<KITE_HOME>/c
     {
       "protocol": "http",
       "ipAddress": "*",
-      "port": 8080,
+      "port": 80,
       "host": "docs.local"
     }
   ],
@@ -206,7 +206,7 @@ Copy the ready-made configs from the sample folders straight into `<KITE_HOME>/c
 - **Caching & Flush Generation**: Output cache respects `Cache-Control: no-cache` / `no-store` and automatically invalidates unsafe methods (`POST`, `PUT`, `DELETE`). Bump `caching.flushGeneration` (or click **Purge Output Cache** in the Studio UI) to flush cached static responses immediately.
 - **URL Rewrite**: Add `features.urlRewrite.rules` (`Redirect301`, `Redirect302`, `Rewrite`, `CustomResponse`) with PCRE-style regexes (`^/old/(.*)$` → `/new/{R:1}`). Kite automatically lets `/.well-known/acme-challenge/` pass before rewrite rules when `enableAcmeHttp01PassThrough` is `true`.
 
-> **Key Info Recap**: Notice `"inheritServerDefaults": false` in `"features"` above! Whenever you customize static compression, SPA fallback, headers, or rewrite rules inside a specific `config/sites/<id>.json`, you must set `"inheritServerDefaults": false`; otherwise `server.json` → `features` silently wins. Run `kite route-test http://docs.local:8080/dashboard` to verify whether SPA fallback or a rewrite matched.
+> **Key Info Recap**: Notice `"inheritServerDefaults": false` in `"features"` above! Whenever you customize static compression, SPA fallback, headers, or rewrite rules inside a specific `config/sites/<id>.json`, you must set `"inheritServerDefaults": false`; otherwise `server.json` → `features` silently wins. Run `kite route-test http://docs.local/dashboard` to verify whether SPA fallback or a rewrite matched.
 
 ---
 
@@ -667,7 +667,7 @@ Built directly into `config/server.json` → `observability`:
 Kite lets you run multiple isolated server instances on the same dev machine without port conflicts or manual `server.json` port edits:
 1. **Per-Repo `.kite/` Workspaces & Exclusive Locks**: Run `kite init --host api-b.localhost` in any project folder to scaffold a `.kite/` workspace locked to `"configVersion": "1.0"`. Each running server holds `<KITE_HOME>/state/server.lock` so two processes never corrupt shared state, logs, or workers.
 2. **Self-Forming Edge Mesh (`mesh.mode: "Auto"`)**:
-   - The first instance on front-door ports (`[8080, 8443]` by default) acquires `edge-leader.lock` (`MeshLeader`).
+   - The first instance on front-door ports (`[80, 443, 8080, 8443]` by default — binding `80`/`443` first and automatically falling back to `8080`/`8443` if `80`/`443` is busy or blocked by OS privileges) acquires `edge-leader.lock` (`MeshLeader`).
    - Subsequent instances automatically detect the active leader, join as `MeshPeer` on an ephemeral `127.0.0.1:<port>`, and register their `*.localhost` hostnames (or auto-derived `<folder-slug>.localhost` if wildcard-only) in the machine-wide registry (`%LOCALAPPDATA%\Kite\instances\`, overridable via `KITE_REGISTRY_DIR`).
    - Requests arriving at the leader for a peer hostname route seamlessly to that peer over loopback (with `Host` preserved and `X-Kite-Mesh-Hop` loop protection). If the leader shuts down, a surviving peer acquires `edge-leader.lock` and promotes itself to claim the front-door ports automatically.
 3. **Fleet Inspection**: Run `kite ps` (or `kite instances`) in the CLI, or use the top-bar **Fleet Instance Switcher** in Desktop Studio to switch across every live instance on the machine from a single window (`Kite.Desktop.WinForms` also scopes `WebView2UserData` per instance so multiple Studio windows coexist cleanly).
@@ -676,7 +676,7 @@ Kite lets you run multiple isolated server instances on the same dev machine wit
 // Optional mesh tuning inside config/server.json (configVersion: "1.0")
 "mesh": {
   "mode": "Auto",
-  "frontDoorPorts": [8080, 8443],
+  "frontDoorPorts": [80, 443, 8080, 8443],
   "autoDomainSuffix": ".localhost"
 }
 ```

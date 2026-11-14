@@ -1996,7 +1996,7 @@ public sealed partial class KiteInMemoryHost
                         <div><label>Method</label><select id="dbg-method" class="obsidian-input mt-1"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select></div>
                         <div><label>Scheme</label><select id="dbg-scheme" class="obsidian-input mt-1"><option>http</option><option>https</option></select></div>
                         <div class="col-span-2"><label>Host Header</label><input id="dbg-host" type="text" value="localhost" class="obsidian-input mt-1" /></div>
-                        <div><label>Port</label><input id="dbg-port" type="number" value="8080" class="obsidian-input mt-1" /></div>
+                        <div><label>Port</label><input id="dbg-port" type="number" value="80" class="obsidian-input mt-1" /></div>
                     </div>
                     <div class="flex gap-2 font-label-code-sm">
                         <input id="dbg-path" type="text" value="/" class="obsidian-input flex-1 font-mono" />

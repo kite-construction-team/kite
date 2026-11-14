@@ -8,13 +8,13 @@
     {
       "protocol": "http",
       "ipAddress": "*",
-      "port": 8080,
+      "port": 80,
       "host": "*"
     },
     {
       "protocol": "https",
       "ipAddress": "*",
-      "port": 8443,
+      "port": 443,
       "host": "localhost",
       "tls": {
         "useSelfSignedDevelopmentCert": true,

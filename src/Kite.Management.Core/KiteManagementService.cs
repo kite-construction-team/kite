@@ -122,12 +122,12 @@ public sealed class KiteManagementService
                 DesiredState = DesiredResourceState.Started,
                 Bindings =
                 [
-                    new SiteBindingConfig { Protocol = "http", IpAddress = "*", Port = 8080, Host = "*" },
+                    new SiteBindingConfig { Protocol = "http", IpAddress = "*", Port = 80, Host = "*" },
                     new SiteBindingConfig
                     {
                         Protocol = "https",
                         IpAddress = "*",
-                        Port = 8443,
+                        Port = 443,
                         Host = "localhost",
                         Tls = new SiteTlsConfig { UseSelfSignedDevelopmentCert = true, AllowHttp2 = true }
                     }

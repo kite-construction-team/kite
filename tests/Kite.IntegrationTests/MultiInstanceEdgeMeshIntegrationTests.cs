@@ -189,4 +189,120 @@ public sealed class MultiInstanceEdgeMeshIntegrationTests
             try { Directory.Delete(tempProject, true); } catch { }
         }
     }
+
+    [Fact]
+    public async Task DefaultPorts80And443_AutomaticallyFallBackTo8080And8443_WhenPortIsBusy()
+    {
+        string tempHome = Path.Combine(Path.GetTempPath(), "kite_port_fallback_" + Guid.NewGuid().ToString("N"));
+        string regDir = Path.Combine(tempHome, "_reg");
+        TcpListener? blocker80 = null;
+        TcpListener? blocker443 = null;
+
+        try
+        {
+            var layout = new KiteHomeLayout(tempHome);
+            var mgmt = new KiteManagementService(layout);
+            await mgmt.EnsureDefaultWorkspaceSeededAsync();
+
+            SiteConfig? defaultSite = null;
+            await mgmt.MutateSiteConfigAsync("default-site", site => { defaultSite = site; });
+            Assert.NotNull(defaultSite);
+            Assert.Contains(defaultSite!.Bindings, b => b.Protocol == "http" && b.Port == 80);
+            Assert.Contains(defaultSite.Bindings, b => b.Protocol == "https" && b.Port == 443);
+
+            // Check whether fallback ports 8080/8443 are available on this host before starting Kestrel on them
+            bool canTestFallback8080;
+            try
+            {
+                var probe8080 = TcpListener.Create(8080);
+                probe8080.ExclusiveAddressUse = true;
+                probe8080.Start();
+                probe8080.Stop();
+                canTestFallback8080 = true;
+            }
+            catch
+            {
+                canTestFallback8080 = false;
+            }
+
+            if (!canTestFallback8080)
+            {
+                return;
+            }
+
+            bool canTestFallback8443;
+            try
+            {
+                var probe8443 = TcpListener.Create(8443);
+                probe8443.ExclusiveAddressUse = true;
+                probe8443.Start();
+                probe8443.Stop();
+                canTestFallback8443 = true;
+            }
+            catch
+            {
+                canTestFallback8443 = false;
+            }
+
+            // Force port 80 conflict if port 80 happens to be free on this machine
+            try
+            {
+                blocker80 = TcpListener.Create(80);
+                blocker80.ExclusiveAddressUse = true;
+                blocker80.Start();
+            }
+            catch
+            {
+                blocker80?.Dispose();
+                blocker80 = null;
+            }
+
+            if (canTestFallback8443)
+            {
+                try
+                {
+                    blocker443 = TcpListener.Create(443);
+                    blocker443.ExclusiveAddressUse = true;
+                    blocker443.Start();
+                }
+                catch
+                {
+                    blocker443?.Dispose();
+                    blocker443 = null;
+                }
+            }
+            else
+            {
+                // Avoid colliding on 8443 if another process is already holding 8443 during test execution
+                await mgmt.MutateSiteConfigAsync("default-site", site =>
+                {
+                    site.Bindings = site.Bindings.Where(static b => b.Port == 80).ToList();
+                });
+            }
+
+            await using var engine = new KiteServerEngine(
+                layout,
+                enableKestrelListeners: true,
+                meshModeOverride: MeshMode.Disabled,
+                registryDirectoryOverride: regDir);
+            await engine.StartAsync(seedDefaultsIfEmpty: false);
+
+            Assert.True(engine.ActivePortRemaps.TryGetValue(80, out int mappedHttpPort));
+            Assert.Equal(8080, mappedHttpPort);
+
+            using var http = new HttpClient();
+            using HttpResponseMessage resp = await http.GetAsync("http://127.0.0.1:8080/index.html");
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+            string body = await resp.Content.ReadAsStringAsync();
+            Assert.Contains("Welcome to Kite Web Server", body);
+        }
+        finally
+        {
+            try { blocker80?.Stop(); } catch { }
+            try { blocker443?.Stop(); } catch { }
+            blocker80?.Dispose();
+            blocker443?.Dispose();
+            try { Directory.Delete(tempHome, true); } catch { }
+        }
+    }
 }

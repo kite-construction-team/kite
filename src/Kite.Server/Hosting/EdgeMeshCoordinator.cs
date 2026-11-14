@@ -31,6 +31,7 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
     private FrozenDictionary<string, string> _peerRoutes = FrozenDictionary<string, string>.Empty;
     private List<string> _peerRoutesSummary = [];
     private List<string> _localHostedDomains = [];
+    private IReadOnlyDictionary<int, int>? _activePortRemaps;
     private bool _disposed;
 
     public EdgeMeshCoordinator(
@@ -155,7 +156,7 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
             }
         }
 
-        ComputeHostedMetadata(snapshot);
+        ComputeHostedMetadata(snapshot, _activePortRemaps);
         await EnsureRegisteredAndWatchAsync(snapshot, ct).ConfigureAwait(false);
 
         if (_role == InstanceRole.MeshLeader)
@@ -185,7 +186,7 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
                 _leaderLock = promoted;
                 _role = InstanceRole.MeshLeader;
                 _peerHttpPort = null;
-                ComputeHostedMetadata(snapshot);
+                ComputeHostedMetadata(snapshot, _activePortRemaps);
                 await RefreshPeerRoutesAsync(ct).ConfigureAwait(false);
                 await UpdateRegistrationAsync(snapshot, ct).ConfigureAwait(false);
                 return true;
@@ -200,11 +201,55 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
         return false;
     }
 
-    public IEnumerable<SiteConfig> BuildEffectiveSitesForRouting(ConfigSnapshot snapshot)
+    public IEnumerable<SiteConfig> BuildEffectiveSitesForRouting(
+        ConfigSnapshot snapshot,
+        IReadOnlyDictionary<int, int>? privilegedPortRemaps = null)
     {
         if (_role != InstanceRole.MeshPeer || !_peerHttpPort.HasValue)
         {
-            return snapshot.Sites.Values;
+            if (privilegedPortRemaps is null || privilegedPortRemaps.Count == 0)
+            {
+                return snapshot.Sites.Values;
+            }
+
+            var fallbackRemapped = new List<SiteConfig>(snapshot.Sites.Count);
+            foreach (SiteConfig site in snapshot.Sites.Values)
+            {
+                if (site.DesiredState != DesiredResourceState.Started)
+                {
+                    fallbackRemapped.Add(site);
+                    continue;
+                }
+
+                var updatedBindings = new List<SiteBindingConfig>(site.Bindings.Count);
+                foreach (SiteBindingConfig b in site.Bindings)
+                {
+                    int mappedPort = privilegedPortRemaps.TryGetValue(b.Port, out int alt) ? alt : b.Port;
+                    updatedBindings.Add(new SiteBindingConfig
+                    {
+                        Protocol = b.Protocol,
+                        IpAddress = b.IpAddress,
+                        Port = mappedPort,
+                        Host = b.Host,
+                        Tls = b.Tls
+                    });
+                }
+
+                fallbackRemapped.Add(new SiteConfig
+                {
+                    Schema = site.Schema,
+                    ConfigVersion = site.ConfigVersion,
+                    Id = site.Id,
+                    Name = site.Name,
+                    DesiredState = site.DesiredState,
+                    Bindings = updatedBindings,
+                    RootApplication = site.RootApplication,
+                    NestedApplications = site.NestedApplications,
+                    Features = site.Features
+                });
+            }
+
+            return fallbackRemapped;
         }
 
         int peerPort = _peerHttpPort.Value;
@@ -319,12 +364,15 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
         _peerRoutesSummary = summary;
     }
 
-    public InstanceDescriptor BuildDescriptor(ConfigSnapshot snapshot)
+    public InstanceDescriptor BuildDescriptor(
+        ConfigSnapshot snapshot,
+        IReadOnlyDictionary<int, int>? portRemaps = null)
     {
+        IReadOnlyDictionary<int, int>? remaps = portRemaps ?? _activePortRemaps;
         var frontDoor = snapshot.Sites.Values
             .Where(static s => s.DesiredState == DesiredResourceState.Started)
             .SelectMany(static s => s.Bindings)
-            .Select(static b => b.Port)
+            .Select(b => remaps is not null && remaps.TryGetValue(b.Port, out int alt) ? alt : b.Port)
             .Distinct()
             .OrderBy(static p => p)
             .ToList();
@@ -347,8 +395,19 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
         };
     }
 
-    public ValueTask UpdateRegistrationAsync(ConfigSnapshot snapshot, CancellationToken ct) =>
-        _registry.UpdateAsync(BuildDescriptor(snapshot), ct);
+    public ValueTask UpdateRegistrationAsync(
+        ConfigSnapshot snapshot,
+        CancellationToken ct,
+        IReadOnlyDictionary<int, int>? portRemaps = null)
+    {
+        if (portRemaps is not null)
+        {
+            _activePortRemaps = portRemaps.Count > 0 ? portRemaps : null;
+            ComputeHostedMetadata(snapshot, _activePortRemaps);
+        }
+
+        return _registry.UpdateAsync(BuildDescriptor(snapshot, _activePortRemaps), ct);
+    }
 
     private async ValueTask EnsureRegisteredAndWatchAsync(ConfigSnapshot snapshot, CancellationToken ct)
     {
@@ -377,7 +436,9 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
         }
     }
 
-    private void ComputeHostedMetadata(ConfigSnapshot snapshot)
+    private void ComputeHostedMetadata(
+        ConfigSnapshot snapshot,
+        IReadOnlyDictionary<int, int>? portRemaps = null)
     {
         var hosts = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -394,14 +455,17 @@ internal sealed class EdgeMeshCoordinator : IAsyncDisposable
 
             foreach (SiteBindingConfig b in site.Bindings)
             {
+                int effectivePort = portRemaps is not null && portRemaps.TryGetValue(b.Port, out int alt)
+                    ? alt
+                    : b.Port;
                 bool isHttps = string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase);
                 if (isHttps)
                 {
-                    firstHttpsPort ??= b.Port;
+                    firstHttpsPort ??= effectivePort;
                 }
                 else
                 {
-                    firstHttpPort ??= b.Port;
+                    firstHttpPort ??= effectivePort;
                 }
 
                 if (!string.IsNullOrWhiteSpace(b.Host) && b.Host.Trim() != "*")

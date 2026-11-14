@@ -19,7 +19,7 @@ internal static class Program
         inMemoryHost.StartAsync(seedDefaults: true).GetAwaiter().GetResult();
 
         // Check if an external Kite.Server daemon is already active (< 1ms).
-        // If a stale daemon from an older build is still running, stop it so the fresh in-process engine can bind 8080/8443.
+        // If a stale daemon from an older build is still running, stop it so the fresh in-process engine can bind 80/443 (or fallback ports).
         KiteServerEngine? embeddedEngine = null;
         Task? engineStartTask = null;
         var (existingStatus, _) = AtomicJsonStore.ReadWithHashAsync(

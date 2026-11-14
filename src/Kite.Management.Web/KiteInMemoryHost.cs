@@ -174,7 +174,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
             string simMethod = q["method"] ?? "GET";
             string simScheme = q["scheme"] ?? "https";
             string simHost = q["host"] ?? "localhost";
-            int simPort = int.TryParse(q["port"], out int sp) ? sp : (simScheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 8443 : 8080);
+            int simPort = int.TryParse(q["port"], out int sp) ? sp : (simScheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 443 : 80);
             string simPath = q["path"] ?? "/";
             PipelineTraceResult simResult = await _managementService
                 .SimulatePipelineAsync(simMethod, simScheme, simHost, simPort, simPath, headers: null, ct)
@@ -595,7 +595,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
                 string poolId = form.GetValueOrDefault("poolId", "default-pool");
                 string physicalPath = form.GetValueOrDefault("physicalPath", "");
                 string hostingModeStr = form.GetValueOrDefault("hostingMode", "StaticOnly");
-                int httpPort = int.TryParse(form.GetValueOrDefault("httpPort"), out int hp) ? hp : 8080;
+                int httpPort = int.TryParse(form.GetValueOrDefault("httpPort"), out int hp) ? hp : 80;
                 string hostHeader = form.GetValueOrDefault("hostHeader", "*");
                 int? httpsPort = int.TryParse(form.GetValueOrDefault("httpsPort"), out int hsp) && hsp > 0 ? hsp : null;
                 bool hasRoutingInspector = string.Equals(form.GetValueOrDefault("routingFieldsPresent"), "true", StringComparison.OrdinalIgnoreCase);
@@ -858,7 +858,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
             .OrderBy(p => p));
         if (string.IsNullOrEmpty(listeningPorts))
         {
-            listeningPorts = "8080, 8443";
+            listeningPorts = "80, 443";
         }
 
         double serverHeapMb = isOnline ? (srvStatus?.ManagedHeapBytes ?? 0) / (1024.0 * 1024.0) : 0.0;
@@ -1026,7 +1026,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
         {
             bool sOnline = s.EffectiveState == RuntimeResourceState.Started;
             string dotCls = sOnline ? "dot-emerald" : "dot-crimson";
-            int firstPort = s.Config.Bindings.FirstOrDefault()?.Port ?? 8080;
+            int firstPort = s.Config.Bindings.FirstOrDefault()?.Port ?? 80;
             sb.Append($"""
                             <a href="/?scope=sites&entity={Uri.EscapeDataString(s.Config.Id)}" class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm">
                                 <span class="flex items-center gap-1.5 truncate"><span class="{dotCls}"></span><span class="truncate">{Enc(s.Config.Name)}</span></span>
@@ -1859,7 +1859,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
                 SiteBindingConfig? firstBinding = s.Config.Bindings.FirstOrDefault();
                 string browseUrl = firstBinding is not null
                     ? $"{firstBinding.Protocol}://localhost:{firstBinding.Port}"
-                    : "http://localhost:8080";
+                    : "http://localhost:80";
 
                 sb.Append($"""
                                 <tr class="{rowCls}" data-filterable>
@@ -1940,7 +1940,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
                 SiteBindingConfig? httpBinding = sc.Bindings.FirstOrDefault(b => string.Equals(b.Protocol, "http", StringComparison.OrdinalIgnoreCase));
                 SiteBindingConfig? httpsBinding = sc.Bindings.FirstOrDefault(b => string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase));
                 bool allowH3 = httpsBinding?.Tls?.AllowHttp3 ?? true;
-                int httpPortVal = httpBinding?.Port ?? 8080;
+                int httpPortVal = httpBinding?.Port ?? 80;
                 int? httpsPortVal = httpsBinding?.Port;
                 string hostHeaderVal = httpBinding?.Host ?? httpsBinding?.Host ?? "*";
                 string activeCluster = sc.RootApplication.UpstreamClusterId ?? "";
@@ -2004,7 +2004,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
                             </div>
                             <div>
                                 <label class="text-on-surface-variant">HTTPS Listen Port (blank = HTTP only)</label>
-                                <input type="number" name="httpsPort" value="{(httpsPortVal?.ToString() ?? "")}" min="1" max="65535" placeholder="8443" class="obsidian-input mt-1" />
+                                <input type="number" name="httpsPort" value="{(httpsPortVal?.ToString() ?? "")}" min="1" max="65535" placeholder="443" class="obsidian-input mt-1" />
                             </div>
                             <div class="flex items-end pb-1.5">
                                 <label class="flex items-center gap-2 text-on-surface">

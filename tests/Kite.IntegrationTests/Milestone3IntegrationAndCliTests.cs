@@ -187,7 +187,7 @@ public sealed class Milestone3IntegrationAndCliTests
             Assert.Contains("VALID (0 conflicts)", outWriter.ToString());
 
             outWriter.GetStringBuilder().Clear();
-            int routeCode = await KiteCliRunner.ExecuteAsync(["route-test", "http://localhost:8080/index.html", "--home", tempHome], outWriter, errWriter);
+            int routeCode = await KiteCliRunner.ExecuteAsync(["route-test", "http://localhost/index.html", "--home", tempHome], outWriter, errWriter);
             Assert.Equal(0, routeCode);
             Assert.Contains("Matched Site", outWriter.ToString());
 

@@ -195,8 +195,8 @@ public sealed class ChromiumDesktopE2ETests
                 var reqCtx = new DefaultHttpContext();
                 reqCtx.Request.Method = "GET";
                 reqCtx.Request.Scheme = "http";
-                reqCtx.Request.Headers["Host"] = "localhost:8080";
-                reqCtx.Connection.LocalPort = 8080;
+                reqCtx.Request.Headers["Host"] = "localhost";
+                reqCtx.Connection.LocalPort = 80;
                 reqCtx.Request.Path = "/index.html";
                 reqCtx.Response.Body = new MemoryStream();
                 await serverEngine.Pipeline.ExecuteAsync(reqCtx);
@@ -314,8 +314,8 @@ public sealed class ChromiumDesktopE2ETests
                 var blockedReq = new DefaultHttpContext();
                 blockedReq.Request.Method = "GET";
                 blockedReq.Request.Scheme = "http";
-                blockedReq.Request.Headers["Host"] = "localhost:8080";
-                blockedReq.Connection.LocalPort = 8080;
+                blockedReq.Request.Headers["Host"] = "localhost";
+                blockedReq.Connection.LocalPort = 80;
                 blockedReq.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("198.51.100.10");
                 blockedReq.Request.Path = "/index.html";
                 blockedReq.Response.Body = new MemoryStream();
@@ -326,8 +326,8 @@ public sealed class ChromiumDesktopE2ETests
                 var redirectReq = new DefaultHttpContext();
                 redirectReq.Request.Method = "GET";
                 redirectReq.Request.Scheme = "http";
-                redirectReq.Request.Headers["Host"] = "localhost:8080";
-                redirectReq.Connection.LocalPort = 8080;
+                redirectReq.Request.Headers["Host"] = "localhost";
+                redirectReq.Connection.LocalPort = 80;
                 redirectReq.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
                 redirectReq.Request.Path = "/old/docs/readme.html";
                 redirectReq.Response.Body = new MemoryStream();

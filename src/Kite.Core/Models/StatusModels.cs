@@ -171,7 +171,7 @@ public sealed class BindingRuntimeStatus
 public sealed class TlsCertificateChainStatus
 {
     public string Host { get; set; } = "localhost";
-    public int Port { get; set; } = 8443;
+    public int Port { get; set; } = 443;
     public string Subject { get; set; } = "";
     public string Issuer { get; set; } = "";
     public string Thumbprint { get; set; } = "";
