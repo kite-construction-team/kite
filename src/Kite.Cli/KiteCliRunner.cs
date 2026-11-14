@@ -68,6 +68,13 @@ public static class KiteCliRunner
             case "import":
                 return await ImportLegacyCliAsync(args, layout, output, error, ct).ConfigureAwait(false);
 
+            case "init":
+                return await InitWorkspaceAsync(args, output, ct).ConfigureAwait(false);
+
+            case "ps":
+            case "instances":
+                return await ListInstancesAsync(output, ct).ConfigureAwait(false);
+
             default:
                 await error.WriteLineAsync($"Unknown command '{args[0]}'.").ConfigureAwait(false);
                 PrintUsage(output);
@@ -77,7 +84,16 @@ public static class KiteCliRunner
 
     private static async Task<int> RunServerAsync(string[] args, KiteHomeLayout layout, TextWriter output, CancellationToken ct)
     {
-        await using var engine = new KiteServerEngine(layout);
+        MeshMode? meshOverride = ReadOption(args, "--mesh")?.Trim().ToLowerInvariant() switch
+        {
+            "auto" => MeshMode.Auto,
+            "leader" or "leaderonly" => MeshMode.LeaderOnly,
+            "peer" or "peeronly" => MeshMode.PeerOnly,
+            "off" or "disabled" => MeshMode.Disabled,
+            _ => null
+        };
+
+        await using var engine = new KiteServerEngine(layout, meshModeOverride: meshOverride);
         HeadlessAdminHost? adminHost = null;
 
         int adminPort = int.TryParse(ReadOption(args, "--admin-port"), out int ap) ? ap : 0;
@@ -91,7 +107,13 @@ public static class KiteCliRunner
         }
 
         await engine.StartAsync(seedDefaultsIfEmpty: true, ct).ConfigureAwait(false);
-        await output.WriteLineAsync($"Kite.Server running (home={layout.RootDirectory}). Press Ctrl+C or SIGTERM to drain and exit.").ConfigureAwait(false);
+        string domainsLabel = engine.MeshHostedDomains.Count > 0 ? string.Join(", ", engine.MeshHostedDomains) : "*";
+        await output.WriteLineAsync($"Kite.Server running (id={engine.InstanceId}, role={engine.MeshRole}, home={layout.RootDirectory}, hosts=[{domainsLabel}]).").ConfigureAwait(false);
+        if (engine.MeshRole == InstanceRole.MeshPeer && !string.IsNullOrWhiteSpace(engine.MeshDirectHttpUrl))
+        {
+            await output.WriteLineAsync($"  Joined local edge mesh as peer on {engine.MeshDirectHttpUrl} (routed by leader on front-door ports).").ConfigureAwait(false);
+        }
+        await output.WriteLineAsync("Press Ctrl+C or SIGTERM to drain and exit.").ConfigureAwait(false);
 
         try
         {
@@ -367,7 +389,9 @@ public static class KiteCliRunner
         output.WriteLine("Kite Edge Server CLI (.NET 10)");
         output.WriteLine("Usage: kite <command> [options]");
         output.WriteLine("Commands:");
-        output.WriteLine("  run [--home <path>] [--admin-port <port>] [--admin-token <token>]");
+        output.WriteLine("  init [--home <path>] [--host <name.localhost>]");
+        output.WriteLine("  ps   | instances");
+        output.WriteLine("  run [--home <path>] [--mesh <auto|leader|peer|off>] [--admin-port <port>] [--admin-token <token>]");
         output.WriteLine("  validate [--home <path>]");
         output.WriteLine("  reload [--home <path>]");
         output.WriteLine("  route-test <url> [--home <path>]");
@@ -378,6 +402,67 @@ public static class KiteCliRunner
         output.WriteLine("  rollback <snapshotId> [--home <path>]");
         output.WriteLine("  deploy --site <id> [--path <dir>] [--swap] [--home <path>]");
         output.WriteLine("  import --format <nginx|caddy|iis> --file <path> [--apply] [--home <path>]");
+    }
+
+    private static async Task<int> InitWorkspaceAsync(string[] args, TextWriter output, CancellationToken ct)
+    {
+        string? homeOpt = ReadOption(args, "--home");
+        string targetHome = !string.IsNullOrWhiteSpace(homeOpt)
+            ? Path.GetFullPath(homeOpt)
+            : Path.Combine(Environment.CurrentDirectory, ".kite");
+
+        var layout = new KiteHomeLayout(targetHome);
+        layout.EnsureDirectoriesCreated();
+
+        string slug = KiteInstanceRegistry.ComputeAutoDomainSlug(targetHome);
+        string? explicitHost = ReadOption(args, "--host");
+        string siteHost = !string.IsNullOrWhiteSpace(explicitHost) ? explicitHost.Trim() : $"{slug}.localhost";
+
+        var mgmt = new KiteManagementService(layout);
+        await mgmt.EnsureDefaultWorkspaceSeededAsync(ct).ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(explicitHost))
+        {
+            await mgmt.MutateSiteConfigAsync("default-site", site =>
+            {
+                site.Name = $"{slug} Local Site";
+                foreach (SiteBindingConfig binding in site.Bindings)
+                {
+                    binding.Host = siteHost;
+                }
+            }, ct).ConfigureAwait(false);
+        }
+
+        await output.WriteLineAsync($"Initialized Kite workspace at: {layout.RootDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"  Suggested mesh host: {siteHost} (configVersion={KiteConfigVersion.Current})").ConfigureAwait(false);
+        await output.WriteLineAsync("  Start it with: kite run").ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> ListInstancesAsync(TextWriter output, CancellationToken ct)
+    {
+        var registry = new KiteInstanceRegistry();
+        IReadOnlyList<InstanceDescriptor> instances = await registry.ListLiveInstancesAsync(ct).ConfigureAwait(false);
+        if (instances.Count == 0)
+        {
+            await output.WriteLineAsync($"No live Kite instances registered in '{registry.RootDirectory}'.").ConfigureAwait(false);
+            return 0;
+        }
+
+        await output.WriteLineAsync($"Live Kite Instances ({instances.Count}) [registry={registry.RootDirectory}]:").ConfigureAwait(false);
+        foreach (InstanceDescriptor inst in instances)
+        {
+            string hosts = inst.HostedDomains.Count > 0 ? string.Join(", ", inst.HostedDomains) : "*";
+            string ports = inst.FrontDoorPorts.Count > 0 ? string.Join(",", inst.FrontDoorPorts) : "-";
+            await output.WriteLineAsync(
+                $"  {inst.InstanceId,-22} | {inst.Role,-10} | PID {inst.Pid,-7} | direct={inst.DirectHttpUrl ?? "-",-24} | hosts=[{hosts}] | ports=[{ports}] | home={inst.KiteHomePath}")
+                .ConfigureAwait(false);
+            foreach (string route in inst.PeerRoutesSummary)
+            {
+                await output.WriteLineAsync($"    -> mesh route: {route}").ConfigureAwait(false);
+            }
+        }
+        return 0;
     }
 
     private static async Task<int> HistoryListAsync(KiteHomeLayout layout, TextWriter output, CancellationToken ct)

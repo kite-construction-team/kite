@@ -14,10 +14,39 @@ public enum RuntimeResourceState
     RapidFailTripped
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<InstanceRole>))]
+public enum InstanceRole
+{
+    Standalone,
+    MeshLeader,
+    MeshPeer
+}
+
+public sealed class InstanceDescriptor
+{
+    public string InstanceId { get; set; } = "";
+    public string KiteHomePath { get; set; } = "";
+    public string ServerName { get; set; } = "";
+    public int Pid { get; set; }
+    public DateTimeOffset StartedAtUtc { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public InstanceRole Role { get; set; } = InstanceRole.Standalone;
+    public List<int> FrontDoorPorts { get; set; } = [];
+    public string? DirectHttpUrl { get; set; }
+    public string? DirectHttpsUrl { get; set; }
+    public int? MeshHttpIngressPort { get; set; }
+    public List<string> HostedDomains { get; set; } = [];
+    public List<string> PeerRoutesSummary { get; set; } = [];
+}
+
 public sealed class ServerStatus
 {
     public int ServerPid { get; set; }
     public string ServerName { get; set; } = "Kite-Production-Node";
+    public string? InstanceId { get; set; }
+    public InstanceRole MeshRole { get; set; } = InstanceRole.Standalone;
+    public string? MeshDirectUrl { get; set; }
+    public List<string> HostedDomains { get; set; } = [];
     public DateTimeOffset StartedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public int ActiveBindingsCount { get; set; }

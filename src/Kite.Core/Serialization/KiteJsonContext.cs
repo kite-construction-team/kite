@@ -18,6 +18,8 @@ namespace Kite.Core.Serialization;
 [JsonSerializable(typeof(SiteFeaturesConfig))]
 [JsonSerializable(typeof(AcmeAccountRecord))]
 [JsonSerializable(typeof(ServerStatus))]
+[JsonSerializable(typeof(InstanceDescriptor))]
+[JsonSerializable(typeof(List<InstanceDescriptor>))]
 [JsonSerializable(typeof(ApplicationPoolStatus))]
 [JsonSerializable(typeof(List<WorkerProcessStatus>))]
 [JsonSerializable(typeof(SiteStatus))]

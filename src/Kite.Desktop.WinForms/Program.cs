@@ -27,16 +27,11 @@ internal static class Program
             KiteJsonContext.Default.ServerStatus).GetAwaiter().GetResult();
 
         bool isRunning = KiteManagementService.IsServerProcessRunning(existingStatus);
-        if (isRunning && existingStatus is not null)
+        if (isRunning && existingStatus is not null &&
+            args.Any(static a => string.Equals(a, "--takeover", StringComparison.OrdinalIgnoreCase)))
         {
-            string serverAssemblyPath = typeof(KiteServerEngine).Assembly.Location;
-            if (!string.IsNullOrEmpty(serverAssemblyPath) &&
-                File.Exists(serverAssemblyPath) &&
-                existingStatus.StartedAtUtc < File.GetLastWriteTimeUtc(serverAssemblyPath))
-            {
-                inMemoryHost.ManagementService.StopServerDaemonAsync().GetAwaiter().GetResult();
-                isRunning = false;
-            }
+            inMemoryHost.ManagementService.StopServerDaemonAsync().GetAwaiter().GetResult();
+            isRunning = false;
         }
 
         // Best-effort cleanup of any renamed .old.* binaries from previous hot builds

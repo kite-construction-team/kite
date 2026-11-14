@@ -125,6 +125,13 @@ public sealed class KiteRequestPipeline : IDisposable
     private readonly UpstreamClusterManager? _upstreamManager;
     private readonly Func<IDistributedEdgeState?>? _distributedStateAccessor;
     private readonly EdgePluginHost? _pluginHost;
+    private readonly Func<int, string, string?>? _meshPeerResolver;
+    private readonly HttpMessageInvoker _fallbackMeshInvoker = new(new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseCookies = false,
+        ConnectTimeout = TimeSpan.FromSeconds(5)
+    });
     private readonly LatencyRingTracker _globalLatency = new();
 
     private long _totalRequestsProcessed;
@@ -150,7 +157,8 @@ public sealed class KiteRequestPipeline : IDisposable
         UpstreamClusterManager? upstreamManager = null,
         Action<string, string>? jsonLogSink = null,
         Func<IDistributedEdgeState?>? distributedStateAccessor = null,
-        EdgePluginHost? pluginHost = null)
+        EdgePluginHost? pluginHost = null,
+        Func<int, string, string?>? meshPeerResolver = null)
     {
         _routeTableAccessor = routeTableAccessor;
         _poolAccessor = poolAccessor;
@@ -163,6 +171,7 @@ public sealed class KiteRequestPipeline : IDisposable
         _upstreamManager = upstreamManager;
         _distributedStateAccessor = distributedStateAccessor;
         _pluginHost = pluginHost;
+        _meshPeerResolver = meshPeerResolver;
     }
 
     public IReadOnlyCollection<string> GetTrackedSiteIds() => _siteTelemetry.Keys.ToList();
@@ -271,8 +280,43 @@ public sealed class KiteRequestPipeline : IDisposable
                 localPort = string.Equals(context.Request.Scheme, "https", StringComparison.OrdinalIgnoreCase) ? 443 : 80;
             }
 
-            if (!routeTable.TryMatchSite(localPort, rawHost.AsSpan(), out compiledSite) ||
-                compiledSite is null)
+            // Named local site wins; otherwise check active Edge Mesh peer hostnames before wildcard '*' fallback.
+            if (!routeTable.TryMatchNamedSite(localPort, rawHost.AsSpan(), out compiledSite) &&
+                _meshPeerResolver is not null)
+            {
+                ReadOnlySpan<char> meshHost = HostRouteTable.ExtractHostWithoutPort(rawHost.AsSpan());
+                if (!meshHost.IsEmpty)
+                {
+                    string? peerTargetBase = _meshPeerResolver(localPort, new string(meshHost));
+                    if (!string.IsNullOrWhiteSpace(peerTargetBase))
+                    {
+                        int hop = int.TryParse(context.Request.Headers["X-Kite-Mesh-Hop"], out int parsedHop) ? parsedHop : 0;
+                        if (hop >= 2)
+                        {
+                            await WriteProblemDetailsAsync(
+                                context,
+                                StatusCodes.Status508LoopDetected,
+                                "Mesh Routing Loop Detected",
+                                $"Local edge mesh hop limit exceeded for host '{rawHost}'.").ConfigureAwait(false);
+                            return;
+                        }
+
+                        HttpMessageInvoker invoker = _upstreamManager?.ProxyInvoker ?? _fallbackMeshInvoker;
+                        await HttpProxyForwarder.ForwardAsync(
+                            context,
+                            invoker,
+                            peerTargetBase,
+                            requestPath.AsMemory(),
+                            enableStreamingPassThrough: true,
+                            context.RequestAborted,
+                            preserveHostHeader: true).ConfigureAwait(false);
+                        return;
+                    }
+                }
+            }
+
+            if (compiledSite is null &&
+                (!routeTable.TryMatchSite(localPort, rawHost.AsSpan(), out compiledSite) || compiledSite is null))
             {
                 // Allow RFC 8555 HTTP-01 challenge responses even before host bindings match
                 const string unmatchedAcmePrefix = "/.well-known/acme-challenge/";
@@ -1676,5 +1720,9 @@ public sealed class KiteRequestPipeline : IDisposable
         return provider;
     }
 
-    public void Dispose() => _outputCache.Dispose();
+    public void Dispose()
+    {
+        _outputCache.Dispose();
+        _fallbackMeshInvoker.Dispose();
+    }
 }

@@ -21,11 +21,19 @@ internal static class HttpProxyForwarder
         string baseAddress,
         ReadOnlyMemory<char> subPath,
         bool enableStreamingPassThrough,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool preserveHostHeader = false)
     {
         string trimmedBase = baseAddress.TrimEnd('/');
         string targetUri = $"{trimmedBase}{subPath.Span}{context.Request.QueryString.Value}";
         using var proxyRequest = new HttpRequestMessage(new HttpMethod(context.Request.Method), targetUri);
+
+        if (preserveHostHeader && context.Request.Host.HasValue)
+        {
+            proxyRequest.Headers.Host = context.Request.Host.Value;
+            int prevHop = int.TryParse(context.Request.Headers["X-Kite-Mesh-Hop"], out int h) ? h : 0;
+            proxyRequest.Headers.TryAddWithoutValidation("X-Kite-Mesh-Hop", (prevHop + 1).ToString());
+        }
 
         bool isGrpc = context.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true;
         if (isGrpc || context.Request.Protocol.Equals("HTTP/2", StringComparison.OrdinalIgnoreCase))

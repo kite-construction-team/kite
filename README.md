@@ -25,8 +25,9 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
    Kite resolves its data directory (`KITE_HOME`) in this exact priority order:
    1. `--home <path>` CLI argument
    2. `KITE_HOME` environment variable
-   3. `<repo-root>/kite-data` (automatically used when running inside a directory tree containing `Kite.slnx`)
-   4. `%LOCALAPPDATA%/Kite/kite-data` (on Windows) or `./kite-data`
+   3. Nearest `.kite/` directory walking upward from the current working directory (initialize one with `kite init`)
+   4. `<repo-root>/kite-data` (automatically used when running inside a directory tree containing `Kite.slnx`)
+   5. `%LOCALAPPDATA%/Kite/kite-data` (on Windows) or `./kite-data`
 
    Inside `KITE_HOME`, every resource has a fixed location:
    ```text
@@ -662,6 +663,24 @@ Built directly into `config/server.json` → `observability`:
   ```
 - **Hot-reloadable C# Edge Middleware (`plugins/*.dll`)**: Implement `IKiteEdgeMiddleware` (`Kite.Core`), drop the assembly into `<KITE_HOME>/plugins/`, and register it under `server.json` → `edgePlugins`. `EdgePluginHost` loads plugins inside collectible `AssemblyLoadContext` instances so plugin updates reload cleanly.
 
+### Multi-Instance Local Edge Mesh & Fleet Control Plane (`.kite/` + `kite ps`)
+Kite lets you run multiple isolated server instances on the same dev machine without port conflicts or manual `server.json` port edits:
+1. **Per-Repo `.kite/` Workspaces & Exclusive Locks**: Run `kite init --host api-b.localhost` in any project folder to scaffold a `.kite/` workspace locked to `"configVersion": "1.0"`. Each running server holds `<KITE_HOME>/state/server.lock` so two processes never corrupt shared state, logs, or workers.
+2. **Self-Forming Edge Mesh (`mesh.mode: "Auto"`)**:
+   - The first instance on front-door ports (`[8080, 8443]` by default) acquires `edge-leader.lock` (`MeshLeader`).
+   - Subsequent instances automatically detect the active leader, join as `MeshPeer` on an ephemeral `127.0.0.1:<port>`, and register their `*.localhost` hostnames (or auto-derived `<folder-slug>.localhost` if wildcard-only) in the machine-wide registry (`%LOCALAPPDATA%\Kite\instances\`, overridable via `KITE_REGISTRY_DIR`).
+   - Requests arriving at the leader for a peer hostname route seamlessly to that peer over loopback (with `Host` preserved and `X-Kite-Mesh-Hop` loop protection). If the leader shuts down, a surviving peer acquires `edge-leader.lock` and promotes itself to claim the front-door ports automatically.
+3. **Fleet Inspection**: Run `kite ps` (or `kite instances`) in the CLI, or use the top-bar **Fleet Instance Switcher** in Desktop Studio to switch across every live instance on the machine from a single window (`Kite.Desktop.WinForms` also scopes `WebView2UserData` per instance so multiple Studio windows coexist cleanly).
+
+```json
+// Optional mesh tuning inside config/server.json (configVersion: "1.0")
+"mesh": {
+  "mode": "Auto",
+  "frontDoorPorts": [8080, 8443],
+  "autoDomainSuffix": ".localhost"
+}
+```
+
 ---
 
 ## 8. CLI & Troubleshooting Cheat Sheet
@@ -669,7 +688,9 @@ Built directly into `config/server.json` → `observability`:
 ### Full `kite` CLI Command Reference
 | Command | Purpose |
 | :--- | :--- |
-| `kite run [--home <path>] [--admin-port <port>] [--admin-token <token>]` | Run `Kite.Server` (optionally with `HeadlessAdminHost` Web Studio) |
+| `kite init [--home <path>] [--host <name.localhost>]` | Scaffold a repo-local `.kite/` workspace locked to `configVersion: "1.0"` |
+| `kite ps` / `kite instances` | List live Kite instances on the machine (`MeshLeader`, `MeshPeer`, `Standalone`) |
+| `kite run [--home <path>] [--mesh <auto\|leader\|peer\|off>] [--admin-port <port>] [--admin-token <token>]` | Run `Kite.Server` (optionally overriding mesh mode or enabling `HeadlessAdminHost`) |
 | `kite validate [--home <path>]` | Validate `server.json`, `pools/*.json`, and `sites/*.json` schemas & references |
 | `kite reload [--home <path>]` | Force config check & print snapshot summary |
 | `kite route-test <url> [--home <path>]` | Simulate host/SNI, virtual path, gateway route rule & rewrite matching without HTTP traffic |

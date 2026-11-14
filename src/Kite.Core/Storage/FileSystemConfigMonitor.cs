@@ -55,6 +55,7 @@ public sealed class KiteHomeLayout
 
     public string ServerConfigPath => Path.Combine(ConfigDirectory, "server.json");
     public string ServerStatusPath => Path.Combine(StateDirectory, "server.status.json");
+    public string ServerLockPath => Path.Combine(StateDirectory, "server.lock");
 
     public string GetPoolConfigPath(string poolId) => Path.Combine(PoolsConfigDirectory, $"{SanitizeFileName(poolId)}.json");
     public string GetSiteConfigPath(string siteId) => Path.Combine(SitesConfigDirectory, $"{SanitizeFileName(siteId)}.json");
@@ -97,10 +98,11 @@ public sealed class KiteHomeLayout
     }
 
     /// <summary>
-    /// Resolves a shared <c>KITE_HOME</c> path across <c>Kite.Server</c> and <c>Kite.Desktop.WinForms</c>
-    /// so both executables operate on the same configuration and state directory by default.
+    /// Resolves a shared <c>KITE_HOME</c> path across <c>Kite.Server</c>, <c>Kite.Cli</c>, and <c>Kite.Desktop.WinForms</c>.
+    /// Precedence: <c>--home</c> argument &gt; <c>KITE_HOME</c> env var &gt; nearest <c>.kite/</c> directory walking up
+    /// from the working directory &gt; repo-local <c>kite-data</c> (next to <c>Kite.slnx</c>) &gt; <c>%LOCALAPPDATA%/Kite/kite-data</c>.
     /// </summary>
-    public static KiteHomeLayout ResolveFromArgsAndEnv(string[] args)
+    public static KiteHomeLayout ResolveFromArgsAndEnv(string[] args, string? workingDirectory = null)
     {
         for (int i = 0; i < args.Length - 1; i++)
         {
@@ -115,6 +117,20 @@ public sealed class KiteHomeLayout
         if (!string.IsNullOrWhiteSpace(envHome))
         {
             return new KiteHomeLayout(envHome);
+        }
+
+        string? workDir = string.IsNullOrWhiteSpace(workingDirectory)
+            ? Environment.CurrentDirectory
+            : Path.GetFullPath(workingDirectory);
+        while (!string.IsNullOrEmpty(workDir))
+        {
+            string dotKite = Path.Combine(workDir, ".kite");
+            if (Directory.Exists(dotKite))
+            {
+                return new KiteHomeLayout(dotKite);
+            }
+
+            workDir = Path.GetDirectoryName(workDir);
         }
 
         string? current = AppContext.BaseDirectory;

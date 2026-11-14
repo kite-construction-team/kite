@@ -479,6 +479,21 @@ public sealed class KiteManagementService
         InvalidateCache();
     }
 
+    public async ValueTask<bool> MutateSiteConfigAsync(string siteId, Action<SiteConfig> mutate, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(mutate);
+        string path = _layout.GetSiteConfigPath(siteId);
+        var (site, _) = await AtomicJsonStore.ReadWithHashAsync(path, KiteJsonContext.Default.SiteConfig, ct).ConfigureAwait(false);
+        if (site is null)
+        {
+            return false;
+        }
+
+        mutate(site);
+        await SaveSiteConfigAsync(site, ct).ConfigureAwait(false);
+        return true;
+    }
+
     private async ValueTask CapturePreSaveSnapshotIfExistingAsync(
         string targetFile,
         string reason,

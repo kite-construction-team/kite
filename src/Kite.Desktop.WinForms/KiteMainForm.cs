@@ -85,10 +85,13 @@ public sealed class KiteMainForm : Form
     {
         try
         {
+            string layoutHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(_inMemoryHost.ManagementService.Layout.RootDirectory.ToUpperInvariant()))[..4]).ToLowerInvariant();
             string userDataFolder = _customUserDataFolder ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Kite",
-                "WebView2UserData");
+                "WebView2UserData",
+                $"{layoutHash}-{Environment.ProcessId}");
 
             var envOptions = new CoreWebView2EnvironmentOptions(
                 additionalBrowserArguments: "--no-proxy-server --disable-background-networking --dns-prefetch-disable --disable-component-update");

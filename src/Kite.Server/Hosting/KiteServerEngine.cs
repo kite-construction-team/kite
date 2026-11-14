@@ -44,6 +44,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
     private readonly L4StreamListenerManager _l4StreamManager = new();
     private readonly OtlpHttpJsonExporter _otlpExporter = new();
     private readonly EdgePluginHost _pluginHost = new();
+    private readonly EdgeMeshCoordinator _meshCoordinator;
     private RedisRespClient? _redisState;
     private readonly ConcurrentDictionary<string, ApplicationPoolSupervisor> _pools = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _pendingW3CLogs = new(StringComparer.OrdinalIgnoreCase);
@@ -54,6 +55,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
     private readonly SemaphoreSlim _reconcileLock = new(1, 1);
     private readonly DateTimeOffset _startedAtUtc;
 
+    private KiteHomeLock? _homeLock;
     private HostRouteTable _routeTable = new([]);
     private KiteRequestPipeline _pipeline;
     private WebApplication? _kestrelApp;
@@ -66,7 +68,9 @@ public sealed class KiteServerEngine : IAsyncDisposable
         KiteHomeLayout layout,
         IWorkerProcessLauncher? workerLauncher = null,
         TimeProvider? timeProvider = null,
-        bool enableKestrelListeners = true)
+        bool enableKestrelListeners = true,
+        MeshMode? meshModeOverride = null,
+        string? registryDirectoryOverride = null)
     {
         ArgumentNullException.ThrowIfNull(layout);
         _layout = layout;
@@ -74,6 +78,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
         _workerLauncher = workerLauncher ?? new RealWorkerProcessLauncher();
         _enableKestrelListeners = enableKestrelListeners;
         _startedAtUtc = _timeProvider.GetUtcNow();
+        _meshCoordinator = new EdgeMeshCoordinator(layout, _startedAtUtc, enableKestrelListeners, meshModeOverride, registryDirectoryOverride);
 
         _configMonitor = new FileSystemConfigMonitor(_layout, _timeProvider);
         _configMonitor.SnapshotChanged += OnConfigurationSnapshotChangedAsync;
@@ -90,7 +95,8 @@ public sealed class KiteServerEngine : IAsyncDisposable
             _upstreamManager,
             EnqueueJsonLogLine,
             () => _redisState,
-            _pluginHost);
+            _pluginHost,
+            _meshCoordinator.ResolvePeerTarget);
     }
 
     public AcmeCertificateManager AcmeManager => _acmeManager;
@@ -100,22 +106,38 @@ public sealed class KiteServerEngine : IAsyncDisposable
     public KiteRequestPipeline Pipeline => _pipeline;
     public HostRouteTable CurrentRouteTable => Volatile.Read(ref _routeTable);
     public IReadOnlyDictionary<string, ApplicationPoolSupervisor> Pools => _pools;
+    public string InstanceId => _meshCoordinator.InstanceId;
+    public InstanceRole MeshRole => _meshCoordinator.Role;
+    public int? MeshPeerHttpPort => _meshCoordinator.PeerHttpPort;
+    public string? MeshDirectHttpUrl => _meshCoordinator.DirectHttpUrl;
+    public IReadOnlyList<string> MeshHostedDomains => _meshCoordinator.LocalHostedDomains;
+    public IReadOnlyList<string> MeshPeerRoutes => _meshCoordinator.PeerRoutesSummary;
 
     public ApplicationPoolSupervisor? GetPoolSupervisor(string poolId) =>
         _pools.TryGetValue(poolId, out ApplicationPoolSupervisor? pool) ? pool : null;
 
     public async ValueTask StartAsync(bool seedDefaultsIfEmpty = true, CancellationToken ct = default)
     {
-        ConfigSnapshot initial = await _configMonitor.InitializeAndStartAsync(seedDefaultsIfEmpty, ct).ConfigureAwait(false);
-        await ApplySnapshotAsync(initial, ct).ConfigureAwait(false);
-        await PublishStateSnapshotsAsync(ct).ConfigureAwait(false);
+        _homeLock ??= KiteHomeLock.Acquire(_layout);
 
-        int intervalMs = Math.Clamp(initial.Server.StatusPublishIntervalMilliseconds, 250, 10_000);
-        _maintenanceAndStateTimer = _timeProvider.CreateTimer(
-            static state => _ = ((KiteServerEngine)state!).RunMaintenanceAndPublishTickAsync(),
-            this,
-            TimeSpan.FromMilliseconds(intervalMs),
-            TimeSpan.FromMilliseconds(intervalMs));
+        try
+        {
+            ConfigSnapshot initial = await _configMonitor.InitializeAndStartAsync(seedDefaultsIfEmpty, ct).ConfigureAwait(false);
+            await ApplySnapshotAsync(initial, ct).ConfigureAwait(false);
+            await PublishStateSnapshotsAsync(ct).ConfigureAwait(false);
+
+            int intervalMs = Math.Clamp(initial.Server.StatusPublishIntervalMilliseconds, 250, 10_000);
+            _maintenanceAndStateTimer = _timeProvider.CreateTimer(
+                static state => _ = ((KiteServerEngine)state!).RunMaintenanceAndPublishTickAsync(),
+                this,
+                TimeSpan.FromMilliseconds(intervalMs),
+                TimeSpan.FromMilliseconds(intervalMs));
+        }
+        catch
+        {
+            await DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     public async ValueTask ApplySnapshotAsync(ConfigSnapshot snapshot, CancellationToken ct = default)
@@ -178,8 +200,10 @@ public sealed class KiteServerEngine : IAsyncDisposable
                 }
             }
 
-            // 2. Atomically swap the lock-free HostRouteTable (including ServerConfig.Features inheritance)
-            var nextRouteTable = new HostRouteTable(snapshot.Sites.Values, snapshot.Server);
+            // 2. Reconcile Edge Mesh leadership/peer role and atomically swap the lock-free HostRouteTable
+            await _meshCoordinator.ReconcileAsync(snapshot, ct).ConfigureAwait(false);
+            IEnumerable<SiteConfig> effectiveSites = _meshCoordinator.BuildEffectiveSitesForRouting(snapshot);
+            var nextRouteTable = new HostRouteTable(effectiveSites, snapshot.Server);
             Interlocked.Exchange(ref _routeTable, nextRouteTable);
 
             // 2b. Reconcile Distributed Redis State, OTLP Trace Exporter, Edge C# Plugins & L4 TCP/SNI Streams
@@ -204,7 +228,10 @@ public sealed class KiteServerEngine : IAsyncDisposable
             _pluginHost.Reconcile(snapshot.Server.EdgePlugins, _layout.PluginsDirectory);
             if (_enableKestrelListeners)
             {
-                await _l4StreamManager.ReconcileAsync(snapshot.Server.TcpStreams, ct).ConfigureAwait(false);
+                List<L4StreamProxyConfig> activeStreams = _meshCoordinator.Role == InstanceRole.MeshPeer
+                    ? []
+                    : snapshot.Server.TcpStreams;
+                await _l4StreamManager.ReconcileAsync(activeStreams, ct).ConfigureAwait(false);
             }
 
             // 3. Rebind Kestrel TCP/TLS listeners if ports/protocols changed
@@ -346,6 +373,10 @@ public sealed class KiteServerEngine : IAsyncDisposable
         {
             ServerPid = Environment.ProcessId,
             ServerName = snapshot.Server.ServerName,
+            InstanceId = _meshCoordinator.InstanceId,
+            MeshRole = _meshCoordinator.Role,
+            MeshDirectUrl = _meshCoordinator.DirectHttpUrl,
+            HostedDomains = _meshCoordinator.LocalHostedDomains.ToList(),
             StartedAtUtc = _startedAtUtc,
             UpdatedAtUtc = now,
             ActiveBindingsCount = activeBindingStrings.Count,
@@ -378,6 +409,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
             serverStatus,
             KiteJsonContext.Default.ServerStatus,
             ct).ConfigureAwait(false);
+        await _meshCoordinator.UpdateRegistrationAsync(snapshot, ct).ConfigureAwait(false);
 
         // 4. Flush pending W3C access logs and FREB traces
         await FlushW3CLogsAsync(now, ct).ConfigureAwait(false);
@@ -399,6 +431,12 @@ public sealed class KiteServerEngine : IAsyncDisposable
 
         try
         {
+            bool roleChanged = await _meshCoordinator.PollAndRefreshAsync(_configMonitor.CurrentSnapshot, CancellationToken.None).ConfigureAwait(false);
+            if (roleChanged)
+            {
+                await ApplySnapshotAsync(_configMonitor.CurrentSnapshot, CancellationToken.None).ConfigureAwait(false);
+            }
+
             await _acmeManager.EnsureAllDomainsProvisionedAsync(_configMonitor.CurrentSnapshot, CancellationToken.None).ConfigureAwait(false);
             await _upstreamManager.EvaluateActiveHealthChecksAsync(CancellationToken.None).ConfigureAwait(false);
             foreach (ApplicationPoolSupervisor pool in _pools.Values)
@@ -417,27 +455,56 @@ public sealed class KiteServerEngine : IAsyncDisposable
     private async ValueTask ReconcileKestrelListenersAsync(ConfigSnapshot snapshot, CancellationToken ct)
     {
         var desiredSignature = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var portProtocolMap = new Dictionary<int, (bool IsHttps, bool AllowHttp3)>();
+        var listenerMap = new Dictionary<(string IpKey, int Port), (bool IsHttps, bool AllowHttp3)>();
 
-        foreach (SiteConfig site in snapshot.Sites.Values)
+        if (_meshCoordinator.Role == InstanceRole.MeshPeer && _meshCoordinator.PeerHttpPort.HasValue)
         {
-            if (site.DesiredState != DesiredResourceState.Started)
+            int peerPort = _meshCoordinator.PeerHttpPort.Value;
+            desiredSignature.Add($"mesh-peer:127.0.0.1:{peerPort}");
+            listenerMap[("127.0.0.1", peerPort)] = (false, false);
+        }
+        else
+        {
+            foreach (SiteConfig site in snapshot.Sites.Values)
             {
-                continue;
+                if (site.DesiredState != DesiredResourceState.Started)
+                {
+                    continue;
+                }
+
+                foreach (SiteBindingConfig b in site.Bindings)
+                {
+                    bool isHttps = string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase);
+                    bool bindingHttp3 = isHttps && snapshot.Server.Transport.EnableHttp3 && (b.Tls?.AllowHttp3 ?? true);
+                    string ipKey = NormalizeBindIpKey(b.IpAddress);
+                    desiredSignature.Add($"{b.Protocol}:{ipKey}:{b.Port}:h3={bindingHttp3}");
+
+                    var key = (ipKey, b.Port);
+                    if (!listenerMap.TryGetValue(key, out var existing))
+                    {
+                        listenerMap[key] = (isHttps, bindingHttp3);
+                    }
+                    else
+                    {
+                        listenerMap[key] = (existing.IsHttps || isHttps, existing.AllowHttp3 || bindingHttp3);
+                    }
+                }
             }
 
-            foreach (SiteBindingConfig b in site.Bindings)
+            // If wildcard '*' exists on a port, coalesce any specific-IP listeners on that same port into AnyIP.
+            foreach ((string _, int port) in listenerMap.Keys.Where(static k => k.IpKey == "*").ToList())
             {
-                bool isHttps = string.Equals(b.Protocol, "https", StringComparison.OrdinalIgnoreCase);
-                bool bindingHttp3 = isHttps && snapshot.Server.Transport.EnableHttp3 && (b.Tls?.AllowHttp3 ?? true);
-                desiredSignature.Add($"{b.Protocol}:{b.IpAddress}:{b.Port}:h3={bindingHttp3}");
-                if (!portProtocolMap.TryGetValue(b.Port, out var existing))
+                var specifics = listenerMap.Where(kvp => kvp.Key.Port == port && kvp.Key.IpKey != "*").ToList();
+                if (specifics.Count > 0)
                 {
-                    portProtocolMap[b.Port] = (isHttps, bindingHttp3);
-                }
-                else
-                {
-                    portProtocolMap[b.Port] = (existing.IsHttps || isHttps, existing.AllowHttp3 || bindingHttp3);
+                    var wild = listenerMap[("*", port)];
+                    foreach (var item in specifics)
+                    {
+                        wild = (wild.IsHttps || item.Value.IsHttps, wild.AllowHttp3 || item.Value.AllowHttp3);
+                        listenerMap.Remove(item.Key);
+                    }
+
+                    listenerMap[("*", port)] = wild;
                 }
             }
         }
@@ -461,7 +528,7 @@ public sealed class KiteServerEngine : IAsyncDisposable
         }
 
         _boundEndpointsSignature = desiredSignature;
-        if (portProtocolMap.Count == 0)
+        if (listenerMap.Count == 0)
         {
             return;
         }
@@ -484,10 +551,10 @@ public sealed class KiteServerEngine : IAsyncDisposable
                 ? new MinDataRate(snapshot.Server.Transport.MinResponseDataRateBytesPerSecond, grace)
                 : null;
 
-            foreach (var (port, (isHttps, bindingHttp3)) in portProtocolMap)
+            foreach (var ((ipKey, port), (isHttps, bindingHttp3)) in listenerMap)
             {
                 bool enablePortHttp3 = isHttps && bindingHttp3 && quicSupported;
-                kestrel.ListenAnyIP(port, listenOptions =>
+                Action<ListenOptions> configureListen = listenOptions =>
                 {
                     listenOptions.Protocols = enablePortHttp3
                         ? HttpProtocols.Http1AndHttp2AndHttp3
@@ -518,8 +585,25 @@ public sealed class KiteServerEngine : IAsyncDisposable
                                 bool enforceTls13 = snapshot.Server.Features.TlsPolicy.EnforceTls13;
                                 MtlsPolicyConfig mtls = snapshot.Server.Features.TlsPolicy.Mtls;
 
-                                if (table.TryMatchSni(sniHost.AsSpan(), out CompiledSiteRoute? matchedRoute) &&
+                                if (table.TryMatchNamedSni(sniHost.AsSpan(), out CompiledSiteRoute? matchedRoute) &&
                                     matchedRoute is not null)
+                                {
+                                    cert = _certificateProvider.GetOrCreateCertificate(
+                                        matchedRoute.Binding,
+                                        _layout.ConfigDirectory,
+                                        _layout.CertsConfigDirectory);
+                                    enforceTls13 = matchedRoute.Features.EffectiveConfig.TlsPolicy.EnforceTls13;
+                                    mtls = matchedRoute.Features.EffectiveConfig.TlsPolicy.Mtls;
+                                }
+                                else if (!string.IsNullOrEmpty(sniHost) && _meshCoordinator.HasPeerHost(sniHost))
+                                {
+                                    cert = _certificateProvider.GetOrCreateCertificate(
+                                        new SiteBindingConfig { Host = sniHost },
+                                        _layout.ConfigDirectory,
+                                        _layout.CertsConfigDirectory);
+                                }
+                                else if (table.TryMatchSni(sniHost.AsSpan(), out matchedRoute) &&
+                                         matchedRoute is not null)
                                 {
                                     cert = _certificateProvider.GetOrCreateCertificate(
                                         matchedRoute.Binding,
@@ -587,7 +671,16 @@ public sealed class KiteServerEngine : IAsyncDisposable
                             }
                         });
                     }
-                });
+                };
+
+                if (ipKey == "*" || !IPAddress.TryParse(ipKey, out IPAddress? parsedIp))
+                {
+                    kestrel.ListenAnyIP(port, configureListen);
+                }
+                else
+                {
+                    kestrel.Listen(parsedIp, port, configureListen);
+                }
             }
         });
 
@@ -597,6 +690,22 @@ public sealed class KiteServerEngine : IAsyncDisposable
 
         await app.StartAsync(ct).ConfigureAwait(false);
         _kestrelApp = app;
+    }
+
+    private static string NormalizeBindIpKey(string? ipAddress)
+    {
+        if (string.IsNullOrWhiteSpace(ipAddress))
+        {
+            return "*";
+        }
+
+        string trimmed = ipAddress.Trim();
+        if (trimmed == "*" || trimmed == "0.0.0.0" || trimmed == "::" || trimmed == "[::]")
+        {
+            return "*";
+        }
+
+        return IPAddress.TryParse(trimmed, out IPAddress? parsed) ? parsed.ToString() : "*";
     }
 
     private void EnqueueW3CLogLine(string siteId, string line)
@@ -740,6 +849,9 @@ public sealed class KiteServerEngine : IAsyncDisposable
         _upstreamManager.Dispose();
         _acmeManager.Dispose();
         _certificateProvider.Dispose();
+        await _meshCoordinator.DisposeAsync().ConfigureAwait(false);
+        _homeLock?.Dispose();
+        _homeLock = null;
         _reconcileLock.Dispose();
     }
 }

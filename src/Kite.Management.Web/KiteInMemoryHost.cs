@@ -22,16 +22,50 @@ namespace Kite.Management.Web;
 /// </summary>
 public sealed partial class KiteInMemoryHost : IAsyncDisposable
 {
-    private readonly KiteManagementService _managementService;
+    private readonly string? _registryDirectoryOverride;
+    private KiteManagementService _managementService;
+    private IReadOnlyList<InstanceDescriptor> _cachedFleetInstances = [];
+    private long _cachedFleetAtTick;
     private bool _started;
 
-    public KiteInMemoryHost(KiteHomeLayout layout)
+    public KiteInMemoryHost(KiteHomeLayout layout, string? registryDirectoryOverride = null)
     {
         ArgumentNullException.ThrowIfNull(layout);
+        _registryDirectoryOverride = registryDirectoryOverride;
         _managementService = new KiteManagementService(layout);
     }
 
     public KiteManagementService ManagementService => _managementService;
+
+    public void SwitchWorkspace(string kiteHomePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(kiteHomePath);
+        string full = Path.GetFullPath(kiteHomePath);
+        if (!string.Equals(full, _managementService.Layout.RootDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            _managementService = new KiteManagementService(new KiteHomeLayout(full));
+            Volatile.Write(ref _cachedFleetAtTick, 0);
+        }
+    }
+
+    public async ValueTask<IReadOnlyList<InstanceDescriptor>> ListFleetInstancesAsync(
+        CancellationToken ct = default,
+        bool forceRefresh = false)
+    {
+        long nowTick = Environment.TickCount64;
+        long prevTick = Volatile.Read(ref _cachedFleetAtTick);
+        if (!forceRefresh && prevTick != 0 && (nowTick - prevTick) < 2000)
+        {
+            return _cachedFleetInstances;
+        }
+
+        ManagementWorkspaceSnapshot snap = await _managementService.GetWorkspaceSnapshotAsync(ct).ConfigureAwait(false);
+        var registry = new KiteInstanceRegistry(_registryDirectoryOverride ?? snap.ServerConfig.Mesh.RegistryDirectoryOverride);
+        IReadOnlyList<InstanceDescriptor> fresh = await registry.ListLiveInstancesAsync(ct).ConfigureAwait(false);
+        _cachedFleetInstances = fresh;
+        Volatile.Write(ref _cachedFleetAtTick, nowTick);
+        return fresh;
+    }
 
     public async ValueTask StartAsync(bool seedDefaults = true, CancellationToken ct = default)
     {
@@ -53,20 +87,21 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
             try
             {
                 ManagementWorkspaceSnapshot snap = await _managementService.GetWorkspaceSnapshotAsync(CancellationToken.None).ConfigureAwait(false);
+                IReadOnlyList<InstanceDescriptor> bgFleet = await ListFleetInstancesAsync(CancellationToken.None).ConfigureAwait(false);
                 StringBuilder bgSb = KiteObjectPools.StringBuilderPool.Get();
                 try
                 {
                     PoolCompositeView? p = snap.Pools.FirstOrDefault();
                     SiteCompositeView? s = snap.Sites.FirstOrDefault();
-                    RenderPageHtml(bgSb, snap, "server", null, "overview", null, p, s, [], []);
+                    RenderPageHtml(bgSb, snap, "server", null, "overview", null, p, s, [], [], bgFleet);
                     bgSb.Clear();
-                    RenderPageHtml(bgSb, snap, "pools", p?.Config.Id, null, null, p, s, [], []);
+                    RenderPageHtml(bgSb, snap, "pools", p?.Config.Id, null, null, p, s, [], [], bgFleet);
                     bgSb.Clear();
-                    RenderPageHtml(bgSb, snap, "sites", s?.Config.Id, null, null, p, s, [], []);
+                    RenderPageHtml(bgSb, snap, "sites", s?.Config.Id, null, null, p, s, [], [], bgFleet);
                     bgSb.Clear();
-                    RenderPageHtml(bgSb, snap, "server", null, "settings", null, p, s, [], []);
+                    RenderPageHtml(bgSb, snap, "server", null, "settings", null, p, s, [], [], bgFleet);
                     bgSb.Clear();
-                    RenderPageHtml(bgSb, snap, "workers", null, null, null, p, s, [], []);
+                    RenderPageHtml(bgSb, snap, "workers", null, null, null, p, s, [], [], bgFleet);
                 }
                 finally
                 {
@@ -162,6 +197,16 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
             return new InMemoryUiResponse(200, "application/json; charset=utf-8", new Dictionary<string, string>(), ms);
         }
 
+        if (path.Equals("/api/fleet/instances", StringComparison.OrdinalIgnoreCase))
+        {
+            IReadOnlyList<InstanceDescriptor> fleet = await ListFleetInstancesAsync(ct, forceRefresh: true).ConfigureAwait(false);
+            byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(fleet.ToList(), KiteJsonContext.Default.ListInstanceDescriptor));
+            var ms = new SegmentedBufferStream();
+            ms.Write(jsonBytes);
+            ms.Position = 0;
+            return new InMemoryUiResponse(200, "application/json; charset=utf-8", new Dictionary<string, string>(), ms);
+        }
+
         if (path.Equals("/partials/config-modals", StringComparison.OrdinalIgnoreCase))
         {
             var modalQ = HttpUtility.ParseQueryString(query);
@@ -196,6 +241,12 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
         }
 
         var queryParams = HttpUtility.ParseQueryString(query);
+        string? requestedHome = queryParams["home"];
+        if (!string.IsNullOrWhiteSpace(requestedHome) && Directory.Exists(requestedHome))
+        {
+            SwitchWorkspace(requestedHome);
+        }
+
         string scope = (queryParams["scope"] ?? "server").Trim().ToLowerInvariant();
         string? entity = queryParams["entity"];
         string? tab = queryParams["tab"];
@@ -224,6 +275,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
         }
 
         ManagementWorkspaceSnapshot workspace = await _managementService.GetWorkspaceSnapshotAsync(ct).ConfigureAwait(false);
+        IReadOnlyList<InstanceDescriptor> fleetInstances = await ListFleetInstancesAsync(ct).ConfigureAwait(false);
 
         PoolCompositeView? selectedPool = null;
         if (scope == "pools")
@@ -284,7 +336,7 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
         StringBuilder sb = KiteObjectPools.StringBuilderPool.Get();
         try
         {
-            RenderPageHtml(sb, workspace, scope, entity, tab, flashMessage, selectedPool, selectedSite, recentSiteLogs, recentFrebTraces);
+            RenderPageHtml(sb, workspace, scope, entity, tab, flashMessage, selectedPool, selectedSite, recentSiteLogs, recentFrebTraces, fleetInstances);
             byte[] utf8 = Encoding.UTF8.GetBytes(sb.ToString());
             bodyBuffer.Write(utf8);
             bodyBuffer.Position = 0;
@@ -364,6 +416,18 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
     {
         switch (path.ToLowerInvariant())
         {
+            case "/actions/fleet-switch":
+            {
+                string targetHome = form.GetValueOrDefault("targetHome", string.Empty).Trim();
+                string returnScope = form.GetValueOrDefault("returnScope", defaultScope);
+                if (!string.IsNullOrWhiteSpace(targetHome) && Directory.Exists(targetHome))
+                {
+                    SwitchWorkspace(targetHome);
+                    return (returnScope, null, null, $"Switched Studio target to instance workspace '{targetHome}'.");
+                }
+                return (returnScope, null, null, "Target instance workspace directory no longer exists.");
+            }
+
             case "/actions/server-daemon":
             {
                 string cmd = form.GetValueOrDefault("command", "start");
@@ -771,7 +835,8 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
         PoolCompositeView? selectedPool,
         SiteCompositeView? selectedSite,
         IReadOnlyList<string> recentSiteLogs,
-        IReadOnlyList<FrebTraceRecord> recentFrebTraces)
+        IReadOnlyList<FrebTraceRecord> recentFrebTraces,
+        IReadOnlyList<InstanceDescriptor>? fleetInstances = null)
     {
         ServerConfig srvCfg = workspace.ServerConfig;
         ServerStatus? srvStatus = workspace.ServerStatus;
@@ -831,10 +896,17 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
 
         if (isOnline)
         {
+            string meshSuffix = srvStatus?.MeshRole switch
+            {
+                InstanceRole.MeshLeader => " • Edge Leader",
+                InstanceRole.MeshPeer when !string.IsNullOrWhiteSpace(srvStatus.MeshDirectUrl) => $" • Mesh Peer ({srvStatus.MeshDirectUrl})",
+                InstanceRole.MeshPeer => " • Mesh Peer",
+                _ => string.Empty
+            };
             sb.Append($"""
                     <div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-surface-container border border-surface-variant text-tertiary">
                         <span class="dot-emerald animate-pulse"></span>
-                        <span class="font-label-code-sm font-medium">{Enc(srvCfg.ServerName)} [Localhost] • Kite.Server Online (PID {srvStatus?.ServerPid})</span>
+                        <span class="font-label-code-sm font-medium">{Enc(srvCfg.ServerName)} [Localhost] • Kite.Server Online (PID {srvStatus?.ServerPid}{Enc(meshSuffix)})</span>
                     </div>
                 """);
         }
@@ -846,6 +918,38 @@ public sealed partial class KiteInMemoryHost : IAsyncDisposable
                         <span class="font-label-code-sm font-medium">{Enc(srvCfg.ServerName)} [Localhost] • Kite.Server Offline (Stopped)</span>
                     </div>
                 """);
+        }
+
+        if (fleetInstances is { Count: > 0 })
+        {
+            sb.Append($"""
+                    <select id="fleetInstanceSwitcher" title="Switch inspected Kite instance" class="obsidian-input py-0.5 px-2 font-label-code-sm text-on-surface bg-surface-container border border-surface-variant rounded" style="max-width: 240px;" onchange="if(this.value) window.location.href='/?scope={Enc(scope)}&home=' + encodeURIComponent(this.value);">
+                """);
+            bool currentInFleet = fleetInstances.Any(i => string.Equals(
+                Path.GetFullPath(i.KiteHomePath),
+                Path.GetFullPath(workspace.KiteHomePath),
+                StringComparison.OrdinalIgnoreCase));
+            if (!currentInFleet)
+            {
+                sb.Append($"""<option value="{Enc(workspace.KiteHomePath)}" selected="selected">Current: {Enc(srvCfg.ServerName)} (Offline)</option>""");
+            }
+            foreach (InstanceDescriptor inst in fleetInstances)
+            {
+                bool isSelected = string.Equals(
+                    Path.GetFullPath(inst.KiteHomePath),
+                    Path.GetFullPath(workspace.KiteHomePath),
+                    StringComparison.OrdinalIgnoreCase);
+                string selAttr = isSelected ? " selected=\"selected\"" : string.Empty;
+                string roleTag = inst.Role switch
+                {
+                    InstanceRole.MeshLeader => "Leader",
+                    InstanceRole.MeshPeer => "Peer",
+                    _ => "Solo"
+                };
+                string hostsTag = inst.HostedDomains.Count > 0 ? $" [{string.Join(", ", inst.HostedDomains.Take(2))}]" : string.Empty;
+                sb.Append($"""<option value="{Enc(inst.KiteHomePath)}"{selAttr}>[{roleTag}] {Enc(inst.ServerName)} (PID {inst.Pid}){Enc(hostsTag)}</option>""");
+            }
+            sb.Append("</select>");
         }
 
         sb.Append("""

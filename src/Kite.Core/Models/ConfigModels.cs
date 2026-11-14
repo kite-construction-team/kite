@@ -122,8 +122,26 @@ public sealed class ServerConfig
     public List<UpstreamClusterConfig> Upstreams { get; set; } = [];
     public List<L4StreamProxyConfig> TcpStreams { get; set; } = [];
     public DistributedStateConfig DistributedState { get; set; } = new();
+    public MeshConfig Mesh { get; set; } = new();
     public List<EdgePluginConfig> EdgePlugins { get; set; } = [];
     public SiteFeaturesConfig Features { get; set; } = new() { InheritServerDefaults = false };
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<MeshMode>))]
+public enum MeshMode
+{
+    Auto,
+    LeaderOnly,
+    PeerOnly,
+    Disabled
+}
+
+public sealed class MeshConfig
+{
+    public MeshMode Mode { get; set; } = MeshMode.Auto;
+    public List<int> FrontDoorPorts { get; set; } = [8080, 8443];
+    public string AutoDomainSuffix { get; set; } = ".localhost";
+    public string? RegistryDirectoryOverride { get; set; }
 }
 
 public sealed class HttpTransportConfig

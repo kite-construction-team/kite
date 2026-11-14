@@ -109,6 +109,26 @@ public sealed class HostRouteTable
     /// </summary>
     public bool TryMatchSite(int port, ReadOnlySpan<char> rawHostHeader, out CompiledSiteRoute? route)
     {
+        if (TryMatchNamedSite(port, rawHostHeader, out route))
+        {
+            return true;
+        }
+
+        if (_portGroups.TryGetValue(port, out PortRouteGroup? group))
+        {
+            route = group.WildcardRoute;
+            return route is not null;
+        }
+
+        route = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves only an explicit host-header binding (without wildcard '*' fallback).
+    /// </summary>
+    public bool TryMatchNamedSite(int port, ReadOnlySpan<char> rawHostHeader, out CompiledSiteRoute? route)
+    {
         if (!_portGroups.TryGetValue(port, out PortRouteGroup? group))
         {
             route = null;
@@ -121,8 +141,22 @@ public sealed class HostRouteTable
             return true;
         }
 
-        route = group.WildcardRoute;
-        return route is not null;
+        route = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves only an explicit SNI hostname binding (without default fallback certificate).
+    /// </summary>
+    public bool TryMatchNamedSni(ReadOnlySpan<char> sniHostName, out CompiledSiteRoute? route)
+    {
+        if (!sniHostName.IsEmpty && _sniSpanLookup.TryGetValue(sniHostName, out route))
+        {
+            return true;
+        }
+
+        route = null;
+        return false;
     }
 
     /// <summary>
@@ -130,7 +164,7 @@ public sealed class HostRouteTable
     /// </summary>
     public bool TryMatchSni(ReadOnlySpan<char> sniHostName, out CompiledSiteRoute? route)
     {
-        if (!sniHostName.IsEmpty && _sniSpanLookup.TryGetValue(sniHostName, out route))
+        if (TryMatchNamedSni(sniHostName, out route))
         {
             return true;
         }
