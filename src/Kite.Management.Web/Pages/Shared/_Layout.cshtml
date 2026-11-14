@@ -1,0 +1,16 @@
+@using Kite.Management.Web
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Kite Web Server Manager</title>
+    <link rel="icon" href="data:," />
+    <style>@Html.Raw(KiteEmbeddedStyles.TailwindCss)</style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100">
+    <div id="kite-app-root">
+        @RenderBody()
+    </div>
+</body>
+</html>

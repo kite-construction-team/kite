@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>kite</AssemblyName>
+    <RootNamespace>Kite.Cli</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kite.Core\Kite.Core.csproj" />
+    <ProjectReference Include="..\Kite.Server\Kite.Server.csproj" />
+    <ProjectReference Include="..\Kite.Management.Core\Kite.Management.Core.csproj" />
+    <ProjectReference Include="..\Kite.Management.Web\Kite.Management.Web.csproj" />
+  </ItemGroup>
+</Project>

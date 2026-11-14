@@ -1,0 +1,233 @@
+[
+  {
+    "id": "RFC9110-9.3.7-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "9.3.7",
+    "level": "MUST",
+    "description": "OPTIONS request MUST return Allow header listing supported methods."
+  },
+  {
+    "id": "RFC9110-9.3.8-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "9.3.8",
+    "level": "MUST",
+    "description": "TRACE request MUST be rejected with 405 Method Not Allowed to prevent XST."
+  },
+  {
+    "id": "RFC9110-12.5.3-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "12.5.3",
+    "level": "MUST",
+    "description": "Accept-Encoding negotiation MUST honor q-values and reject encodings with q=0."
+  },
+  {
+    "id": "RFC9110-13.1.1-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "13.1.1",
+    "level": "MUST",
+    "description": "If-Match MUST use strong comparison and return 412 Precondition Failed on mismatch."
+  },
+  {
+    "id": "RFC9110-13.1.2-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "13.1.2",
+    "level": "MUST",
+    "description": "If-None-Match MUST use weak comparison and return 304 Not Modified for GET/HEAD when matched."
+  },
+  {
+    "id": "RFC9110-13.1.3-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "13.1.3",
+    "level": "MUST",
+    "description": "Recipient MUST ignore If-Modified-Since when If-None-Match is present in the request."
+  },
+  {
+    "id": "RFC9110-13.2.2-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "13.2.2",
+    "level": "MUST",
+    "description": "Preconditions MUST be evaluated in strict order: If-Match, If-Unmodified-Since, If-None-Match, If-Modified-Since."
+  },
+  {
+    "id": "RFC9110-14.1.2-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "14.1.2",
+    "level": "MUST",
+    "description": "Satisfiable byte-range requests MUST return 206 Partial Content with Content-Range header and exact slice."
+  },
+  {
+    "id": "RFC9110-14.4-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "14.4",
+    "level": "MUST",
+    "description": "Unsatisfiable Range requests MUST return 416 Range Not Satisfiable with Content-Range: bytes */length."
+  },
+  {
+    "id": "RFC9110-13.1.5-MUST-1",
+    "rfc": "RFC 9110",
+    "section": "13.1.5",
+    "level": "MUST",
+    "description": "If-Range MUST serve 206 Partial Content when validator matches and full 200 OK when validator mismatches."
+  },
+  {
+    "id": "RFC9111-4.1-MUST-1",
+    "rfc": "RFC 9111",
+    "section": "4.1",
+    "level": "MUST",
+    "description": "Output Cache MUST store cacheable 200 OK responses and emit Age header on subsequent hits."
+  },
+  {
+    "id": "RFC9111-5.2.1-MUST-1",
+    "rfc": "RFC 9111",
+    "section": "5.2.1",
+    "level": "MUST",
+    "description": "Request Cache-Control: no-cache or no-store MUST bypass cached responses."
+  },
+  {
+    "id": "RFC9111-4.4-MUST-1",
+    "rfc": "RFC 9111",
+    "section": "4.4",
+    "level": "MUST",
+    "description": "Unsafe methods (POST, PUT, DELETE, PATCH) MUST invalidate cached entries for the target URI."
+  },
+  {
+    "id": "RFC9111-4.1-VARY-1",
+    "rfc": "RFC 9111",
+    "section": "4.1",
+    "level": "MUST",
+    "description": "Output Cache MUST partition cached representations by negotiated Content-Encoding (Vary: Accept-Encoding)."
+  },
+  {
+    "id": "RFC9112-5.4-MUST-1",
+    "rfc": "RFC 9112",
+    "section": "5.4",
+    "level": "MUST",
+    "description": "Server MUST respond with 400 Bad Request to any HTTP/1.1 request lacking a Host header or containing multiple/invalid Host headers."
+  },
+  {
+    "id": "RFC9113-3.2-ALPN-1",
+    "rfc": "RFC 9113",
+    "section": "3.2",
+    "level": "MUST",
+    "description": "HTTP/2 requests using :authority pseudo-header without legacy Host header MUST route accurately."
+  },
+  {
+    "id": "RFC6455-4.2-MUST-1",
+    "rfc": "RFC 6455",
+    "section": "4.2",
+    "level": "MUST",
+    "description": "WebSocket upgrade requests MUST complete 101 Switching Protocols handshake and exchange bi-directional frames."
+  },
+  {
+    "id": "RFC7932-BROTLI-1",
+    "rfc": "RFC 7932",
+    "section": "1",
+    "level": "MUST",
+    "description": "Brotli (br) compressed responses MUST decompress accurately and set Content-Encoding: br."
+  },
+  {
+    "id": "RFC8878-ZSTD-1",
+    "rfc": "RFC 8878",
+    "section": "3.1.1",
+    "level": "MUST",
+    "description": "Zstandard (zstd) responses MUST start with RFC 8878 frame magic number 0xFD2FB528 and set Content-Encoding: zstd."
+  },
+  {
+    "id": "RFC1952-GZIP-1",
+    "rfc": "RFC 1952",
+    "section": "2.2",
+    "level": "MUST",
+    "description": "Gzip responses MUST start with RFC 1952 ID1/ID2 magic bytes (0x1F 0x8B) and decompress accurately."
+  },
+  {
+    "id": "RFC6066-SNI-1",
+    "rfc": "RFC 6066",
+    "section": "3",
+    "level": "MUST",
+    "description": "SNI hostname selector MUST route TLS handshakes to the matching site binding and certificate."
+  },
+  {
+    "id": "RFC6797-HSTS-1",
+    "rfc": "RFC 6797",
+    "section": "6.1",
+    "level": "MUST",
+    "description": "Sites with HSTS enabled MUST emit valid Strict-Transport-Security header."
+  },
+  {
+    "id": "RFC7239-FWD-1",
+    "rfc": "RFC 7239",
+    "section": "4",
+    "level": "MUST",
+    "description": "Reverse proxy and IPC dispatchers MUST append RFC 7239 Forwarded (for, proto, host) header."
+  },
+  {
+    "id": "RFC9457-PROBLEM-1",
+    "rfc": "RFC 9457",
+    "section": "3",
+    "level": "MUST",
+    "description": "Error responses MUST emit RFC 9457 application/problem+json containing type, title, status, detail, and instance."
+  },
+  {
+    "id": "RFC7838-ALTSVC-1",
+    "rfc": "RFC 7838",
+    "section": "3",
+    "level": "MUST",
+    "description": "HTTPS responses over HTTP/1.1 or HTTP/2 MUST advertise HTTP/3 availability via Alt-Svc when HTTP/3 transport is enabled."
+  },
+  {
+    "id": "RFC8297-EARLYHINTS-1",
+    "rfc": "RFC 8297",
+    "section": "2",
+    "level": "MUST",
+    "description": "Dynamic endpoints configured with EarlyHintsLinks MUST emit preload Link headers and trigger interim 103 Early Hints dispatch."
+  },
+  {
+    "id": "RFC9110-429-RETRY-1",
+    "rfc": "RFC 9110",
+    "section": "15.5.29",
+    "level": "MUST",
+    "description": "Rate-limited requests exceeding quota MUST return 429 Too Many Requests with Retry-After header."
+  },
+  {
+    "id": "RFC8555-HTTP01-1",
+    "rfc": "RFC 8555",
+    "section": "8.3",
+    "level": "MUST",
+    "description": "Requests to /.well-known/acme-challenge/{token} MUST respond 200 text/plain with the matching key authorization string."
+  },
+  {
+    "id": "RFC9110-15.4.9-REDIR-1",
+    "rfc": "RFC 9110",
+    "section": "15.4.9",
+    "level": "MUST",
+    "description": "Sites configured with RedirectHttpToHttps MUST return HTTP 308/301 Location pointing to https:// while preserving host, path, and query string."
+  },
+  {
+    "id": "GRPC-WEB-TRAILERS-1",
+    "rfc": "gRPC-Web Protocol",
+    "section": "Framing",
+    "level": "MUST",
+    "description": "gRPC-Web bridge MUST encode trailing gRPC headers into a 0x80 uncompressed trailer frame with 4-byte big-endian length prefix."
+  },
+  {
+    "id": "RFC6066-L4-SNI-1",
+    "rfc": "RFC 6066",
+    "section": "3.0",
+    "level": "MUST",
+    "description": "L4 TLS passthrough proxy MUST inspect ClientHello SNI extension (0x0000) without terminating TLS."
+  },
+  {
+    "id": "RFC8259-JSONDEPTH-1",
+    "rfc": "RFC 8259",
+    "section": "9",
+    "level": "MUST",
+    "description": "Bounded request body WAF MUST reject JSON payloads exceeding MaxJsonDepth with HTTP 400 and rewind valid streams."
+  },
+  {
+    "id": "RFC9110-FAULT-503-1",
+    "rfc": "RFC 9110",
+    "section": "15.6.4",
+    "level": "MUST",
+    "description": "Gateway routes configured with chaos fault injection MUST return the configured 5xx ProblemDetails response and support declarative path/header transforms."
+  }
+]

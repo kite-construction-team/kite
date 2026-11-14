@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+kite-data/state/
+kite-data/logs/
+*.tmp.*
+TestResults/
+BenchmarkDotNet.Artifacts/

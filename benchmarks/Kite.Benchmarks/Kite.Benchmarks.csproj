@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Kite.Benchmarks</RootNamespace>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kite.Core\Kite.Core.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Server\Kite.Server.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Worker\Kite.Worker.csproj" />
+  </ItemGroup>
+</Project>

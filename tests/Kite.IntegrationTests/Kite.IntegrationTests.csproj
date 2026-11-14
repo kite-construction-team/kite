@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Kite.IntegrationTests</RootNamespace>
+    <WebView2SdkDir>C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\ModelBuilder</WebView2SdkDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kite.Core\Kite.Core.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Server\Kite.Server.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Worker\Kite.Worker.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Management.Core\Kite.Management.Core.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Management.Web\Kite.Management.Web.csproj" />
+    <ProjectReference Include="..\..\src\Kite.Cli\Kite.Cli.csproj" />
+    <Compile Include="..\..\src\Kite.Desktop.WinForms\WebView2InMemoryBridge.cs" Link="WebView2InMemoryBridge.cs" />
+    <Compile Include="..\..\src\Kite.Desktop.WinForms\KiteMainForm.cs" Link="KiteMainForm.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(WebView2SdkDir)\Microsoft.Web.WebView2.Core.dll')">
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>$(WebView2SdkDir)\Microsoft.Web.WebView2.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms">
+      <HintPath>$(WebView2SdkDir)\Microsoft.Web.WebView2.WinForms.dll</HintPath>
+    </Reference>
+    <None Include="$(WebView2SdkDir)\runtimes\win-x64\native\WebView2Loader.dll" Condition="Exists('$(WebView2SdkDir)\runtimes\win-x64\native\WebView2Loader.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>WebView2Loader.dll</Link>
+    </None>
+  </ItemGroup>
+</Project>

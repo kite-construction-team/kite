@@ -1,0 +1,12 @@
+{
+  "$schema": "https://kite.local/schemas/server.v1.json",
+  "serverName": "Kite-Production-Node",
+  "maxConcurrentConnections": 100000,
+  "maxRequestBodySize": 30000000,
+  "keepAliveTimeoutSeconds": 120,
+  "headerTimeoutSeconds": 30,
+  "enableAltSvcHeader": true,
+  "defaultCompressionEnabled": true,
+  "defaultCachingEnabled": true,
+  "statusPublishIntervalMilliseconds": 1000
+}

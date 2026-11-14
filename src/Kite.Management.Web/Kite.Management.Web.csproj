@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Kite.Management.Web</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kite.Management.Core\Kite.Management.Core.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="9.0.6" />
+  </ItemGroup>
+</Project>

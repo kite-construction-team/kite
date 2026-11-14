@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kite.Core/Kite.Core.csproj" />
+    <Project Path="src/Kite.Server/Kite.Server.csproj" />
+    <Project Path="src/Kite.Worker/Kite.Worker.csproj" />
+    <Project Path="src/Kite.Management.Core/Kite.Management.Core.csproj" />
+    <Project Path="src/Kite.Management.Web/Kite.Management.Web.csproj" />
+    <Project Path="src/Kite.Desktop.WinForms/Kite.Desktop.WinForms.csproj" />
+    <Project Path="src/Kite.Cli/Kite.Cli.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Sample.DotNetApi/Sample.DotNetApi.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Kite.Benchmarks/Kite.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kite.UnitTests/Kite.UnitTests.csproj" />
+    <Project Path="tests/Kite.SpecTests/Kite.SpecTests.csproj" />
+    <Project Path="tests/Kite.IntegrationTests/Kite.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

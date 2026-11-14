@@ -1,0 +1,19 @@
+{
+  "id": "node-pool",
+  "name": "Node.js Out-of-Process Pool",
+  "desiredState": "Started",
+  "processModel": {
+    "workerCount": 1,
+    "startMode": "AlwaysRunning",
+    "idleTimeoutMinutes": 20,
+    "environmentVariables": {
+      "NODE_ENV": "production"
+    }
+  },
+  "recycling": {
+    "periodicRestartMinutes": 1440,
+    "maxMemoryMegabytes": 512,
+    "maxRequests": 0,
+    "overlappedRecycleTimeoutSeconds": 30
+  }
+}

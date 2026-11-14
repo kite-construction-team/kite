@@ -1,0 +1,19 @@
+{
+  "id": "python-pool",
+  "name": "Python Out-of-Process Pool",
+  "desiredState": "Started",
+  "processModel": {
+    "workerCount": 1,
+    "startMode": "AlwaysRunning",
+    "idleTimeoutMinutes": 20,
+    "environmentVariables": {
+      "PYTHONUNBUFFERED": "1"
+    }
+  },
+  "recycling": {
+    "periodicRestartMinutes": 1440,
+    "maxMemoryMegabytes": 512,
+    "maxRequests": 0,
+    "overlappedRecycleTimeoutSeconds": 30
+  }
+}

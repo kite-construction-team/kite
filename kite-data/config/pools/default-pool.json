@@ -1,0 +1,27 @@
+{
+  "$schema": "https://kite.local/schemas/pool.v1.json",
+  "id": "default-pool",
+  "name": "Default Application Pool",
+  "desiredState": "Started",
+  "recycleVersion": 2,
+  "processModel": {
+    "workerCount": 2,
+    "idleTimeoutMinutes": 20,
+    "identity": "ApplicationPoolIdentity",
+    "gcMode": "DatasServer",
+    "startMode": "AlwaysRunning",
+    "environmentVariables": {}
+  },
+  "recycling": {
+    "periodicRestartMinutes": 1740,
+    "maxMemoryMegabytes": 1024,
+    "maxRequests": 0,
+    "scheduledRestartUtcTime": "04:00",
+    "disallowOverlappingRotation": false
+  },
+  "rapidFailProtection": {
+    "enabled": true,
+    "maxCrashes": 5,
+    "intervalMinutes": 5
+  }
+}

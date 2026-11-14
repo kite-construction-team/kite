@@ -1,0 +1,550 @@
+@page "/"
+@model Kite.Management.Web.Pages.IndexModel
+@{
+    ViewData["Title"] = $"Kite Manager ({Model.Scope.ToUpperInvariant()})";
+    var srvStatus = Model.Workspace.ServerStatus;
+    var srvCfg = Model.Workspace.ServerConfig;
+}
+
+<!-- Top Menu Bar with Primary Scope Dropdown & Contextual Entity Controls -->
+<header class="bg-slate-950 border-b border-slate-800 px-4 py-3">
+    <div class="max-w-7xl flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span class="bg-sky-600 text-white font-bold px-2.5 py-1 rounded text-sm">KITE</span>
+                <span class="font-semibold text-white">Server Manager</span>
+                <span class="text-xs text-slate-400 font-mono">(.NET 10 LTS)</span>
+            </div>
+
+            <!-- Primary Scope Selector Dropdown (Server | Application Pools | Sites) -->
+            <form method="get" action="/" class="flex items-center gap-2">
+                <label for="scope-select" class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Scope:</label>
+                <select id="scope-select" name="scope" onchange="this.form.submit()" class="font-semibold">
+                    <option value="server" selected="@(Model.Scope == "server")">🌐 Server (@srvCfg.ServerName)</option>
+                    <option value="pools" selected="@(Model.Scope == "pools")">⚙️ Application Pools (@Model.Workspace.Pools.Count)</option>
+                    <option value="sites" selected="@(Model.Scope == "sites")">🌍 Sites (@Model.Workspace.Sites.Count)</option>
+                </select>
+
+                @if (Model.Scope == "pools" && Model.Workspace.Pools.Count > 0)
+                {
+                    <label for="pool-entity-select" class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Pool:</label>
+                    <select id="pool-entity-select" name="entity" onchange="this.form.submit()">
+                        @foreach (var p in Model.Workspace.Pools)
+                        {
+                            <option value="@p.Config.Id" selected="@(p.Config.Id == Model.Entity)">@p.Config.Name (@p.EffectiveState)</option>
+                        }
+                    </select>
+                }
+                else if (Model.Scope == "sites" && Model.Workspace.Sites.Count > 0)
+                {
+                    <label for="site-entity-select" class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Site:</label>
+                    <select id="site-entity-select" name="entity" onchange="this.form.submit()">
+                        @foreach (var s in Model.Workspace.Sites)
+                        {
+                            <option value="@s.Config.Id" selected="@(s.Config.Id == Model.Entity)">@s.Config.Name (@s.EffectiveState)</option>
+                        }
+                    </select>
+                }
+                <noscript><button type="submit" class="bg-sky-600 text-white px-3 py-1">Go</button></noscript>
+            </form>
+
+            <!-- Quick Scope Switcher Links -->
+            <nav class="flex items-center gap-2 text-xs">
+                <a href="/?scope=server" class="px-2.5 py-1 rounded @(Model.Scope == "server" ? "bg-sky-600 text-white font-semibold" : "bg-slate-800 text-slate-300")">Server</a>
+                <a href="/?scope=pools" class="px-2.5 py-1 rounded @(Model.Scope == "pools" ? "bg-sky-600 text-white font-semibold" : "bg-slate-800 text-slate-300")">Application Pools</a>
+                <a href="/?scope=sites" class="px-2.5 py-1 rounded @(Model.Scope == "sites" ? "bg-sky-600 text-white font-semibold" : "bg-slate-800 text-slate-300")">Sites</a>
+            </nav>
+        </div>
+
+        <div class="flex items-center gap-3 text-xs">
+            @if (Model.Workspace.IsServerOnline && srvStatus is not null)
+            {
+                <span class="px-2.5 py-1 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 font-mono">
+                    ● Kite.Server Online (PID @srvStatus.ServerPid)
+                </span>
+            }
+            else
+            {
+                <span class="px-2.5 py-1 rounded-full bg-rose-950 border border-rose-700 text-rose-400 font-mono">
+                    ○ Kite.Server Daemon Offline
+                </span>
+            }
+            <form method="post" asp-page-handler="ServerDaemonAction" class="inline-flex gap-1">
+                @if (!Model.Workspace.IsServerOnline)
+                {
+                    <button type="submit" name="actionType" value="start" class="bg-emerald-600 text-white px-2.5 py-1 text-xs">▶ Start Daemon</button>
+                }
+                else
+                {
+                    <button type="submit" name="actionType" value="restart" class="bg-amber-600 text-white px-2.5 py-1 text-xs">↻ Restart Daemon</button>
+                    <button type="submit" name="actionType" value="stop" class="bg-rose-600 text-white px-2.5 py-1 text-xs">■ Stop Daemon</button>
+                }
+            </form>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-7xl p-6">
+    @if (!string.IsNullOrWhiteSpace(Model.FlashMessage))
+    {
+        <div class="mb-4 p-3 rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-400 text-sm">
+            @Model.FlashMessage
+        </div>
+    }
+
+    @if (!Model.Workspace.IsServerOnline)
+    {
+        <div class="mb-6 p-4 rounded-xl bg-rose-950 border border-rose-700 text-rose-400 flex items-center justify-between">
+            <div>
+                <div class="font-bold text-white">Kite.Server Background Daemon is Offline</div>
+                <div class="text-xs mt-1">No HTTP/HTTPS ports are currently bound. Click <strong>Start Kite.Server Daemon</strong> to launch the Kestrel listener process for <code>@Model.Workspace.KiteHomePath</code>.</div>
+            </div>
+            <form method="post" asp-page-handler="ServerDaemonAction">
+                <button type="submit" name="actionType" value="start" class="bg-emerald-600 text-white px-4 py-2 text-xs font-bold">▶ Start Kite.Server Daemon</button>
+            </form>
+        </div>
+    }
+
+    @if (Model.Scope == "server")
+    {
+        <!-- SERVER CONTEXTUAL WORKSPACE -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">🌐 Server Node: @srvCfg.ServerName</h1>
+                <p class="text-slate-400 text-sm">Kestrel Multi-Binding Engine &bull; Server GC + DATAS &bull; Zero-Allocation Pipeline</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/?scope=server&tab=overview" class="px-3 py-1.5 rounded @(Model.Tab == "overview" ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-300")">Overview &amp; GC Telemetry</a>
+                <a href="/?scope=server&tab=settings" class="px-3 py-1.5 rounded @(Model.Tab == "settings" ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-300")">Global Server Settings</a>
+            </div>
+        </div>
+
+        @if (Model.Tab == "settings")
+        {
+            <section class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                <h2 class="text-lg font-bold mb-4">Global Server Configuration (config/server.json)</h2>
+                <form id="form-save-server" method="post" asp-page-handler="SaveServer" class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Server Node Name</label>
+                        <input type="text" name="serverName" value="@srvCfg.ServerName" class="w-full" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Max Concurrent Connections</label>
+                        <input type="number" name="maxConcurrentConnections" value="@srvCfg.MaxConcurrentConnections" class="w-full" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Max Request Body Size (Bytes)</label>
+                        <input type="number" name="maxRequestBodySize" value="@srvCfg.MaxRequestBodySize" class="w-full" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Keep-Alive Timeout (Seconds)</label>
+                        <input type="number" name="keepAliveTimeoutSeconds" value="@srvCfg.KeepAliveTimeoutSeconds" class="w-full" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Header Read Timeout (Seconds)</label>
+                        <input type="number" name="headerTimeoutSeconds" value="@srvCfg.HeaderTimeoutSeconds" class="w-full" />
+                    </div>
+                    <div class="flex items-center gap-6 mt-6">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="defaultCompressionEnabled" value="true" checked="@srvCfg.DefaultCompressionEnabled" />
+                            <span>Enable Compression by Default</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="defaultCachingEnabled" value="true" checked="@srvCfg.DefaultCachingEnabled" />
+                            <span>Enable RFC 9111 Output Cache by Default</span>
+                        </label>
+                    </div>
+                    <div class="mt-4">
+                        <button type="submit" class="bg-sky-600 text-white px-4 py-2">Save Server Configuration Atomically</button>
+                    </div>
+                </form>
+            </section>
+        }
+        else
+        {
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase">Total Requests Processed</div>
+                    <div class="text-2xl font-bold text-white mt-2">@(Model.Workspace.IsServerOnline ? (srvStatus?.TotalRequestsProcessed ?? 0) : 0)</div>
+                    <div class="text-xs text-emerald-400 mt-2">Active Connections: @(Model.Workspace.IsServerOnline ? (srvStatus?.ActiveConnections ?? 0) : 0)</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase">Active Bindings</div>
+                    <div class="text-2xl font-bold text-sky-400 mt-2">@(Model.Workspace.IsServerOnline ? (srvStatus?.ActiveBindingsCount ?? 0) : 0)</div>
+                    <div class="text-xs text-slate-400 mt-2">Across @Model.Workspace.Sites.Count Site(s)</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase">.NET 10 Managed Heap</div>
+                    <div class="text-2xl font-bold text-emerald-400 mt-2">@(Model.Workspace.IsServerOnline && srvStatus is not null ? $"{(srvStatus.ManagedHeapBytes / 1024.0 / 1024.0):F2} MB" : "Offline")</div>
+                    <div class="text-xs text-slate-400 mt-2">Server GC + DATAS Enabled</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <div class="text-xs text-slate-400 uppercase">GC Collections (Gen 0/1/2)</div>
+                    <div class="text-xl font-mono font-bold text-white mt-2">
+                        @(Model.Workspace.IsServerOnline && srvStatus is not null ? $"{srvStatus.Gen0Collections} / {srvStatus.Gen1Collections} / {srvStatus.Gen2Collections}" : "- / - / -")
+                    </div>
+                    <div class="text-xs text-slate-400 mt-2">LOH-Free SegmentedBufferStream</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <section class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <h2 class="text-lg font-bold mb-4">Application Pools Summary</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Pool</th>
+                                <th>State</th>
+                                <th>GC Mode</th>
+                                <th>Workers</th>
+                                <th>Recycle Ver</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in Model.Workspace.Pools)
+                            {
+                                <tr>
+                                    <td><a href="/?scope=pools&entity=@p.Config.Id" class="text-sky-400 font-semibold">@p.Config.Name</a></td>
+                                    <td><span class="@(p.EffectiveState == RuntimeResourceState.Started ? "text-emerald-400" : "text-rose-400") font-mono">@p.EffectiveState</span></td>
+                                    <td class="font-mono text-xs">@p.Config.ProcessModel.GcMode</td>
+                                    <td>@(p.Status?.ActiveWorkers.Count ?? 0) / @p.Config.ProcessModel.WorkerCount</td>
+                                    <td class="font-mono">v@(p.Config.RecycleVersion)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <h2 class="text-lg font-bold mb-4">Hosted Sites Summary</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Site</th>
+                                <th>State</th>
+                                <th>Bindings</th>
+                                <th>Mode</th>
+                                <th>Requests</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in Model.Workspace.Sites)
+                            {
+                                <tr>
+                                    <td><a href="/?scope=sites&entity=@s.Config.Id" class="text-sky-400 font-semibold">@s.Config.Name</a></td>
+                                    <td><span class="@(s.EffectiveState == RuntimeResourceState.Started ? "text-emerald-400" : "text-rose-400") font-mono">@s.EffectiveState</span></td>
+                                    <td class="font-mono text-xs">@string.Join(", ", s.Config.Bindings.Select(b => $"{b.Protocol}://localhost:{b.Port}"))</td>
+                                    <td class="font-mono text-xs">@s.Config.RootApplication.HostingMode</td>
+                                    <td>@(s.Status?.TotalRequests ?? 0)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        }
+    }
+    else if (Model.Scope == "pools" && Model.SelectedPool is { } poolView)
+    {
+        <!-- APPLICATION POOLS CONTEXTUAL WORKSPACE -->
+        var poolCfg = poolView.Config;
+        var poolStatus = poolView.Status;
+
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">⚙️ Application Pool: @poolCfg.Name <span class="text-sm font-mono text-slate-400">(@poolCfg.Id)</span></h1>
+                <p class="text-slate-400 text-sm">
+                    State: <span class="@(poolView.EffectiveState == RuntimeResourceState.Started ? "text-emerald-400" : "text-rose-400") font-semibold">@poolView.EffectiveState</span> &bull;
+                    Recycle Version: <span class="font-mono">v@(poolCfg.RecycleVersion)</span> &bull;
+                    GC Profile: <span class="font-mono text-sky-400">@poolCfg.ProcessModel.GcMode</span>
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <form method="post" asp-page-handler="PoolAction" class="inline-flex gap-2">
+                    <input type="hidden" name="poolId" value="@poolCfg.Id" />
+                    <button type="submit" name="actionType" value="start" class="bg-emerald-600 text-white px-3 py-1.5 text-xs">▶ Start</button>
+                    <button type="submit" name="actionType" value="stop" class="bg-rose-600 text-white px-3 py-1.5 text-xs">■ Stop</button>
+                    <button type="submit" name="actionType" value="recycle" class="bg-amber-600 text-white px-3 py-1.5 text-xs">↻ Overlapped Recycle</button>
+                </form>
+            </div>
+        </div>
+
+        <section class="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
+            <h2 class="text-lg font-bold mb-4">Process Model, .NET 10 GC &amp; Recycling Settings (config/pools/@(poolCfg.Id).json)</h2>
+            <form id="form-save-pool" method="post" asp-page-handler="SavePool" class="grid grid-cols-3 gap-4">
+                <input type="hidden" name="poolId" value="@poolCfg.Id" />
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Display Name</label>
+                    <input type="text" name="name" value="@poolCfg.Name" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Web Garden Worker Count</label>
+                    <input type="number" name="workerCount" value="@poolCfg.ProcessModel.WorkerCount" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">.NET 10 GC Mode</label>
+                    <select name="gcMode" class="w-full">
+                        <option value="DatasServer" selected="@(poolCfg.ProcessModel.GcMode == PoolGcMode.DatasServer)">DatasServer (Server GC + DATAS)</option>
+                        <option value="Server" selected="@(poolCfg.ProcessModel.GcMode == PoolGcMode.Server)">Server (Classic Throughput GC)</option>
+                        <option value="Workstation" selected="@(poolCfg.ProcessModel.GcMode == PoolGcMode.Workstation)">Workstation (Low-Memory Footprint)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Idle Timeout Spin-Down (Minutes)</label>
+                    <input type="number" name="idleTimeoutMinutes" value="@poolCfg.ProcessModel.IdleTimeoutMinutes" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Max Memory / GCHeapHardLimit (MB)</label>
+                    <input type="number" name="maxMemoryMegabytes" value="@poolCfg.Recycling.MaxMemoryMegabytes" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Periodic Restart (Minutes)</label>
+                    <input type="number" name="periodicRestartMinutes" value="@poolCfg.Recycling.PeriodicRestartMinutes" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Max Requests Before Recycle (0 = Unlimited)</label>
+                    <input type="number" name="maxRequests" value="@poolCfg.Recycling.MaxRequests" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Rapid-Fail Max Crashes</label>
+                    <input type="number" name="rapidFailMaxCrashes" value="@poolCfg.RapidFailProtection.MaxCrashes" class="w-full" />
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 uppercase block mb-2">Rapid-Fail Window (Minutes)</label>
+                    <input type="number" name="rapidFailIntervalMinutes" value="@poolCfg.RapidFailProtection.IntervalMinutes" class="w-full" />
+                </div>
+                <div class="flex items-center gap-4 mt-4">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="rapidFailEnabled" value="true" checked="@poolCfg.RapidFailProtection.Enabled" />
+                        <span>Enable Rapid-Fail Circuit Breaker</span>
+                    </label>
+                </div>
+                <div class="flex items-center gap-4 mt-4">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="disallowOverlappingRotation" value="true" checked="@poolCfg.Recycling.DisallowOverlappingRotation" />
+                        <span>Disallow Overlapped Recycling</span>
+                    </label>
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="bg-sky-600 text-white px-4 py-2">Save Application Pool</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h2 class="text-lg font-bold mb-4">Active Worker Processes (state/pools/@(poolCfg.Id).status.json)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Worker ID</th>
+                        <th>PID</th>
+                        <th>Hosting Mode</th>
+                        <th>Transport Address</th>
+                        <th>Requests Served</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (poolStatus?.ActiveWorkers is { Count: > 0 })
+                    {
+                        @foreach (var w in poolStatus.ActiveWorkers)
+                        {
+                            <tr>
+                                <td class="font-mono font-semibold text-sky-400">@w.WorkerId</td>
+                                <td class="font-mono">@w.ProcessId</td>
+                                <td class="font-mono text-xs">@w.HostingMode</td>
+                                <td class="font-mono text-xs">@w.TransportAddress</td>
+                                <td>@w.RequestsServed</td>
+                                <td>@(w.IsDraining ? "Draining (Overlapped Recycle)" : "Active")</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="text-slate-400">No active worker status snapshot yet (or pool is Idle / Stopped).</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+    else if (Model.Scope == "sites" && Model.SelectedSite is { } siteView)
+    {
+        <!-- SITES CONTEXTUAL WORKSPACE -->
+        var siteCfg = siteView.Config;
+        var siteStatus = siteView.Status;
+        var primaryHttp = siteCfg.Bindings.FirstOrDefault(b => string.Equals(b.Protocol, "http", StringComparison.OrdinalIgnoreCase))
+                          ?? siteCfg.Bindings.FirstOrDefault();
+
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">🌍 Site: @siteCfg.Name <span class="text-sm font-mono text-slate-400">(@siteCfg.Id)</span></h1>
+                <p class="text-slate-400 text-sm">
+                    State: <span class="text-emerald-400 font-semibold">@siteView.EffectiveState</span> &bull;
+                    App Pool: <a href="/?scope=pools&entity=@siteCfg.RootApplication.PoolId" class="text-sky-400 font-mono">@siteCfg.RootApplication.PoolId</a> &bull;
+                    Requests: @(siteStatus?.TotalRequests ?? 0) &bull; Cache Hits: @(siteStatus?.CacheHits ?? 0)
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="/?scope=sites&entity=@siteCfg.Id&tab=overview" class="px-3 py-1.5 rounded text-xs @(Model.Tab != "logs" ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-300")">Configuration &amp; Bindings</a>
+                <a href="/?scope=sites&entity=@siteCfg.Id&tab=logs" class="px-3 py-1.5 rounded text-xs @(Model.Tab == "logs" ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-300")">W3C Access Logs</a>
+                <form method="post" asp-page-handler="SiteAction" class="inline-flex gap-2">
+                    <input type="hidden" name="siteId" value="@siteCfg.Id" />
+                    <button type="submit" name="actionType" value="start" class="bg-emerald-600 text-white px-3 py-1.5 text-xs">▶ Start</button>
+                    <button type="submit" name="actionType" value="stop" class="bg-rose-600 text-white px-3 py-1.5 text-xs">■ Stop</button>
+                </form>
+            </div>
+        </div>
+
+        @if (Model.Tab == "logs")
+        {
+            <section class="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs">
+                <h2 class="text-sm font-bold text-slate-300 mb-2">W3C Extended Log Tail (logs/sites/@siteCfg.Id/)</h2>
+                @if (Model.SiteLogLines.Count == 0)
+                {
+                    <p class="text-slate-400">No W3C log entries recorded for this site yet.</p>
+                }
+                else
+                {
+                    @foreach (string line in Model.SiteLogLines)
+                    {
+                        <div class="py-1 border-b border-slate-800 text-emerald-400">@line</div>
+                    }
+                }
+            </section>
+        }
+        else
+        {
+            <section class="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
+                <h2 class="text-lg font-bold mb-4">Site Bindings, Workload Hosting &amp; RFC Features (config/sites/@(siteCfg.Id).json)</h2>
+                <form id="form-save-site" method="post" asp-page-handler="SaveSite" class="grid grid-cols-3 gap-4">
+                    <input type="hidden" name="siteId" value="@siteCfg.Id" />
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Site Name</label>
+                        <input type="text" name="name" value="@siteCfg.Name" class="w-full" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Root Application Pool</label>
+                        <select name="poolId" class="w-full">
+                            @foreach (var p in Model.Workspace.Pools)
+                            {
+                                <option value="@p.Config.Id" selected="@(p.Config.Id == siteCfg.RootApplication.PoolId)">@p.Config.Name (@p.Config.Id)</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Workload Hosting Mode</label>
+                        <select name="hostingMode" class="w-full">
+                            <option value="StaticOnly" selected="@(siteCfg.RootApplication.HostingMode == WorkloadHostingMode.StaticOnly)">StaticOnly (Static Files + Virtual Dirs)</option>
+                            <option value="KiteWorkerIpc" selected="@(siteCfg.RootApplication.HostingMode == WorkloadHostingMode.KiteWorkerIpc)">KiteWorkerIpc (Mode B: Named Pipe .NET Worker)</option>
+                            <option value="OutOfProcessProxy" selected="@(siteCfg.RootApplication.HostingMode == WorkloadHostingMode.OutOfProcessProxy)">OutOfProcessProxy (Mode A: Reverse Proxy)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Physical Root Path</label>
+                        <input type="text" name="physicalPath" value="@siteCfg.RootApplication.PhysicalPath" class="w-full font-mono" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Primary HTTP Port</label>
+                        <input type="number" name="httpPort" value="@(primaryHttp?.Port ?? 8080)" class="w-full font-mono" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">Primary Host Header (* = Wildcard)</label>
+                        <input type="text" name="httpHost" value="@(primaryHttp?.Host ?? "*")" class="w-full font-mono" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase block mb-2">RFC 9111 Output Cache Max-Age (s)</label>
+                        <input type="number" name="cacheMaxAgeSeconds" value="@siteCfg.Features.Caching.DefaultMaxAgeSeconds" class="w-full" />
+                    </div>
+                    <div class="flex items-center gap-4 mt-6">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="compressionEnabled" value="true" checked="@siteCfg.Features.Compression.Enabled" />
+                            <span>Compression (zstd/br/gzip)</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="cachingEnabled" value="true" checked="@siteCfg.Features.Caching.Enabled" />
+                            <span>Output Cache</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-4 mt-6">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="hstsEnabled" value="true" checked="@siteCfg.Features.Hsts.Enabled" />
+                            <span>RFC 6797 HSTS</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="directoryBrowsing" value="true" checked="@siteCfg.Features.DirectoryBrowsing" />
+                            <span>Directory Browsing</span>
+                        </label>
+                    </div>
+                    <div class="mt-4">
+                        <button type="submit" class="bg-sky-600 text-white px-4 py-2">Save Site Configuration Atomically</button>
+                    </div>
+                </form>
+            </section>
+
+            <div class="grid grid-cols-2 gap-6">
+                <section class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <h3 class="font-bold mb-2">Configured Bindings (HTTP/1.1, HTTP/2 &amp; SNI)</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Protocol</th>
+                                <th>IP:Port</th>
+                                <th>Host / SNI</th>
+                                <th>HTTP/2</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in siteCfg.Bindings)
+                            {
+                                <tr>
+                                    <td class="uppercase font-mono text-sky-400">@b.Protocol</td>
+                                    <td class="font-mono">@b.IpAddress:@b.Port</td>
+                                    <td class="font-mono">@b.Host</td>
+                                    <td>@(b.Tls?.AllowHttp2 ?? true ? "Enabled" : "HTTP/1.1 Only")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <h3 class="font-bold mb-2">Nested Applications &amp; Virtual Directories</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Virtual Path</th>
+                                <th>Target / Physical Path</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="text-emerald-400">Root App</td>
+                                <td class="font-mono">/</td>
+                                <td class="font-mono text-xs">@siteCfg.RootApplication.PhysicalPath (@siteCfg.RootApplication.PoolId)</td>
+                            </tr>
+                            @foreach (var vd in siteCfg.RootApplication.VirtualDirectories)
+                            {
+                                <tr>
+                                    <td class="text-sky-400">Virtual Dir</td>
+                                    <td class="font-mono">@vd.VirtualPath</td>
+                                    <td class="font-mono text-xs">@vd.PhysicalPath</td>
+                                </tr>
+                            }
+                            @foreach (var na in siteCfg.NestedApplications)
+                            {
+                                <tr>
+                                    <td class="text-amber-400">Nested App</td>
+                                    <td class="font-mono">@na.Path</td>
+                                    <td class="font-mono text-xs">@na.PhysicalPath (@na.PoolId - @na.HostingMode)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        }
+    }
+</main>

@@ -1,0 +1,22 @@
+{
+  "id": "sample-node-api",
+  "name": "node-api.local",
+  "desiredState": "Started",
+  "bindings": [
+    {
+      "protocol": "http",
+      "ipAddress": "*",
+      "port": 8081,
+      "host": "*"
+    }
+  ],
+  "rootApplication": {
+    "path": "/",
+    "poolId": "node-pool",
+    "physicalPath": "N:/Repo/kite/samples/Sample.NodeApi",
+    "hostingMode": "OutOfProcessProxy",
+    "executable": "node",
+    "arguments": "server.js",
+    "enableStreamingPassThrough": true
+  }
+}

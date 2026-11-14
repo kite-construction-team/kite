@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior: none; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-dim": "#131317", "on-error-container": "#ffdad6", "on-secondary-fixed-variant": "#6700b5", "tertiary": "#e1ffec", "on-tertiary-fixed": "#002113", "surface-container-low": "#1b1b1f", "background": "#131317", "on-secondary-fixed": "#2c0051", "outline": "#849495", "inverse-primary": "#00696f", "on-primary-fixed-variant": "#004f53", "inverse-surface": "#e4e1e7", "surface-container-highest": "#353439", "primary-container": "#00f2fe", "on-primary-container": "#006a70", "error": "#ffb4ab", "secondary-fixed": "#efdbff", "on-error": "#690005", "secondary-container": "#7701d0", "surface-container": "#1f1f23", "surface-tint": "#00dce6", "on-secondary-container": "#dcb7ff", "secondary": "#dcb8ff", "on-background": "#e4e1e7", "on-tertiary": "#003824", "secondary-fixed-dim": "#dcb8ff", "on-secondary": "#480081", "on-tertiary-container": "#006e4b", "on-primary-fixed": "#002022", "primary-fixed-dim": "#00dce6", "surface": "#131317", "on-tertiary-fixed-variant": "#005236", "error-container": "#93000a", "tertiary-fixed-dim": "#4edea3", "primary-fixed": "#6ff6ff", "primary": "#e0fdff", "surface-container-high": "#2a292e", "on-surface": "#e4e1e7", "on-primary": "#00373a", "surface-bright": "#39393d", "tertiary-fixed": "#6ffbbe", "inverse-on-surface": "#303034", "tertiary-container": "#67f4b7", "on-surface-variant": "#b9cacb", "surface-variant": "#353439", "surface-container-lowest": "#0e0e12", "outline-variant": "#3a494b" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "margin": "1rem", "space-xl": "1.5rem", "gutter": "0.75rem", "space-sm": "0.5rem", "space-lg": "1rem", "margin-window": "0.5rem", "gutter-dense": "0.5rem", "space-xs": "0.25rem", "space-md": "0.75rem" }, "fontFamily": { "label-code-lg": ["JetBrains Mono"], "headline-sm": ["Inter"], "body-sm": ["Inter"], "label-code-sm": ["JetBrains Mono"], "badge-label": ["JetBrains Mono"], "body-md": ["Inter"], "headline-lg": ["Inter"], "headline-xl": ["Inter"], "label-code-md": ["JetBrains Mono"], "body-lg": ["Inter"] }, "fontSize": { "label-code-lg": ["13px", { "lineHeight": "18px", "letterSpacing": "-0.01em", "fontWeight": "500" }], "headline-sm": ["14px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400" }], "label-code-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500" }], "badge-label": ["9px", { "lineHeight": "12px", "letterSpacing": "0.06em", "fontWeight": "700" }], "body-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" }], "headline-lg": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "headline-xl": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "label-code-md": ["11px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "400" }], "body-lg": ["14px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400" }] } } } };</script></head><body class="bg-surface-container-lowest text-on-surface select-none overflow-x-hidden min-h-screen"><header class="fixed top-0 left-0 right-0 h-14 bg-surface-container-lowest/90 backdrop-blur-xl z-50 flex items-center justify-between px-space-md shadow-[0_1px_8px_rgba(0,0,0,0.4)]" data-tauri-drag-region=""><div class="flex items-center gap-space-md pointer-events-auto"><img alt="IIS Tauri Icon" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ALJJyrBkuhOPd7W7suiMIqW6dnHqB-xWkBUrWWuea-14X8l8VKsX_abJjXZiApZzImguaW71xUGmuWwNffi-IGarKEwha0SLRlRdx4fqi5RB6qN3qLNjNnNtF66Z1vAXJvPRCbhb1oCcbTMJya2D0tRJtEg4yRJHrerhNRxuMIw_RlkZGEbOzBLW6PwM8_sqTaNInpwgwFPke3NtVYgCn7rFW4FtixLXUyF0Z9xrXTM18zpV"/><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-primary tracking-tight font-semibold">IIS Manager Studio v11.4</span><span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Tauri Runtime • x64 Native</span></div><div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-surface-container text-tertiary"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container animate-pulse"></span><span class="font-label-code-sm text-label-code-sm font-medium">WIN-SRV-2025-CORE [Localhost] • W3SVC Running</span></div></div><div class="flex items-center gap-space-md flex-1 max-w-md mx-space-xl pointer-events-auto"><div class="relative w-full"><span class="material-symbols-outlined absolute left-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span><input class="w-full pl-8 pr-12 py-1 rounded bg-surface-container-low text-on-surface font-label-code-md text-label-code-md placeholder:text-on-surface-variant/50 focus:outline-none focus:bg-surface-container" placeholder="Filter sites, pools, workers, or config directives..." type="text"/><span class="absolute right-space-sm top-1/2 -translate-y-1/2 font-badge-label text-badge-label bg-surface-container-high px-1 rounded text-on-surface-variant">CTRL+K</span></div></div><div class="flex items-center gap-space-sm pointer-events-auto"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><div class="flex items-center ml-space-xs"><button aria-label="Minimize" class="h-8 w-8 flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">minimize</span></button><button aria-label="Maximize" class="h-8 w-8 flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">crop_square</span></button><button aria-label="Close" class="h-8 w-8 flex items-center justify-center hover:bg-error-container text-on-surface-variant hover:text-on-error-container transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></header><aside class="fixed left-0 top-14 bottom-8 w-72 bg-surface-container-low/95 backdrop-blur-xl z-40 flex flex-col justify-between overflow-y-auto"><div class="p-space-sm"><div class="flex items-center gap-space-sm px-space-sm py-space-xs rounded bg-surface-container text-on-surface mb-space-sm"><span class="material-symbols-outlined text-primary-container text-[18px]">dns</span><div class="flex flex-col truncate"><span class="font-label-code-md text-label-code-md text-on-surface font-semibold truncate">DESKTOP-SRV</span><span class="font-label-code-sm text-label-code-sm text-on-surface-variant truncate">IIS 10.0 Express/Standard</span></div></div><nav class="flex flex-col gap-0.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold rounded-lg"><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="dashboard-and-telemetry" href="#"><span class="material-symbols-outlined text-[18px]">speed</span><span>Dashboard &amp; Telemetry</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="sites-and-app-pools" href="#"><span class="material-symbols-outlined text-[18px]">lan</span><span>Sites &amp; App Pools</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="configuration-and-features" href="#"><span class="material-symbols-outlined text-[18px]">tune</span><span>Configuration &amp; Features</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="worker-processes-and-tracing" href="#"><span class="material-symbols-outlined text-[18px]">analytics</span><span>Worker Processes &amp; Tracing</span></a></nav><div class="mt-space-md pt-space-xs"><div class="flex items-center justify-between px-space-sm py-0.5 text-on-surface-variant font-badge-label text-badge-label uppercase tracking-wider"><span>Sites Inventory</span><span class="font-label-code-sm text-label-code-sm text-primary">4 Online</span></div><div class="flex flex-col gap-0.5 mt-1"><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>Default Web Site</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:80</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>api.internal.io</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:443</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>auth-service</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:8443</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>cdn-gateway</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:8080</span></div></div></div><div class="mt-space-md pt-space-xs"><div class="flex items-center justify-between px-space-sm py-0.5 text-on-surface-variant font-badge-label text-badge-label uppercase tracking-wider"><span>Application Pools</span><span class="font-label-code-sm text-label-code-sm text-secondary">3 Running</span></div><div class="flex flex-col gap-0.5 mt-1"><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>DefaultAppPool</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">v4.0</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>CoreCLR_Pool</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">No Managed</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>NetFX4_Pool</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">Classic</span></div></div></div></div><div class="p-space-sm m-space-xs rounded bg-surface-container-lowest text-on-surface"><div class="flex items-center justify-between mb-space-xs"><span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Host Resources</span><span class="font-label-code-sm text-label-code-sm text-tertiary-container">Normal</span></div><div class="grid grid-cols-2 gap-space-xs font-label-code-sm text-label-code-sm text-on-surface-variant"><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">CPU Load</span><span class="text-on-surface font-semibold">14% (8c/16t)</span></div><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">Physical RAM</span><span class="text-on-surface font-semibold">3.2 / 16 GB</span></div><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">W3SVC Uptime</span><span class="text-on-surface font-semibold">18d 4h 22m</span></div><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">Tauri Native</span><span class="text-primary-container font-semibold">24 MB RSS</span></div></div></div></aside><div class="pl-72"><main class="pt-14 pb-8 min-h-screen w-full px-space-lg bg-surface-container-lowest"><div class="flex flex-col w-full gap-space-md text-on-surface">
+<!-- Breadcrumb & Server Context Micro-Strip -->
+<div class="flex items-center justify-between px-space-xs text-on-surface-variant">
+<div class="flex items-center gap-space-xs font-label-code-sm text-label-code-sm">
+<span class="flex items-center gap-1 text-primary-fixed-dim">
+<span class="material-symbols-outlined text-[15px]">lan</span>
+<span>IIS://LOCALHOST/W3SVC</span>
+</span>
+<span>/</span>
+<span class="text-on-surface">SITES &amp; APP POOLS CLUSTER</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-badge-label text-badge-label text-tertiary">SCHEMA v10.0</span>
+</div>
+<div class="flex items-center gap-space-md font-label-code-sm text-label-code-sm">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-tertiary-container">sync</span>
+<span class="text-on-surface-variant">Sync: <span class="text-on-surface font-medium">Real-time Polling (1.5s)</span></span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-secondary">memory</span>
+<span class="text-on-surface-variant">W3WP Workers: <span class="text-secondary font-medium">5 active</span></span>
+</div>
+</div>
+</div>
+<!-- View Toggle & Control Cockpit -->
+<div class="p-space-md rounded-lg bg-surface-container-low/95 shadow-md flex flex-wrap items-center justify-between gap-space-md">
+<!-- Left: Segmented View Selector -->
+<div class="flex items-center gap-space-xs bg-surface-container-lowest p-1 rounded-lg">
+<button class="flex items-center gap-space-xs px-3 py-1.5 rounded-lg bg-surface-container-high text-primary font-headline-sm text-headline-sm transition-all shadow-sm" id="tab-sites" onclick="switchMainTab('sites')" type="button">
+<span class="material-symbols-outlined text-[16px] text-primary-container">dns</span>
+<span>Websites</span>
+<span class="px-1.5 py-0.2 rounded bg-surface-container font-badge-label text-badge-label text-tertiary-container">8 Active</span>
+</button>
+<button class="flex items-center gap-space-xs px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-headline-sm text-headline-sm transition-all" id="tab-pools" onclick="switchMainTab('pools')" type="button">
+<span class="material-symbols-outlined text-[16px]">layers</span>
+<span>Application Pools</span>
+<span class="px-1.5 py-0.2 rounded bg-surface-container font-badge-label text-badge-label text-secondary">6 Active</span>
+</button>
+</div>
+<!-- Center: Search Filter with Shortcut -->
+<div class="relative flex-1 min-w-[240px] max-w-md">
+<span class="material-symbols-outlined absolute left-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span>
+<input class="w-full pl-8 pr-16 py-1.5 rounded bg-surface-container-lowest text-on-surface font-label-code-md text-label-code-md placeholder:text-on-surface-variant/40 focus:outline-none focus:bg-surface-container shadow-inner" id="siteSearchInput" placeholder="Filter by binding, pool, path or domain..." type="text"/>
+<span class="absolute right-space-sm top-1/2 -translate-y-1/2 font-badge-label text-badge-label bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface-variant select-none">Ctrl+K</span>
+</div>
+<!-- Right: Cluster Batch Actions & Creators -->
+<div class="flex items-center gap-space-xs">
+<!-- Batch Ops Dropdown / Group -->
+<div class="flex items-center bg-surface-container-lowest p-0.5 rounded">
+<button class="p-1.5 rounded hover:bg-surface-container text-tertiary transition-colors flex items-center" onclick="triggerToast('Executing w3svc: Start-Website *')" title="Start All Inactive" type="button">
+<span class="material-symbols-outlined text-[16px]">play_arrow</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container text-primary-container transition-colors flex items-center" onclick="triggerToast('Executing: %systemroot%\\system32\\inetsrv\\appcmd recycle apppools')" title="Recycle All Pools" type="button">
+<span class="material-symbols-outlined text-[16px]">autorenew</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container text-error transition-colors flex items-center" onclick="triggerToast('Stopping 8 Sites gracefully...')" title="Stop All Sites" type="button">
+<span class="material-symbols-outlined text-[16px]">stop</span>
+</button>
+</div>
+<!-- Add App Pool Secondary -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-body-md text-body-md transition-all shadow-sm" onclick="triggerModal('New Application Pool Dialog')" type="button">
+<span class="material-symbols-outlined text-[16px] text-secondary">add_circle</span>
+<span>Add Pool</span>
+</button>
+<!-- Add Website Primary Luminescent -->
+<button class="flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-primary-container text-on-primary font-headline-sm text-headline-sm transition-all shadow-[0_0_12px_rgba(0,242,254,0.35)] hover:shadow-[0_0_18px_rgba(0,242,254,0.55)]" onclick="triggerModal('New IIS Website Wizard')" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>Add Website</span>
+</button>
+</div>
+</div>
+<!-- Live Cluster Telemetry Micro-Cards Strip -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm">
+<div class="p-space-sm rounded-lg bg-surface-container-low shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Combined Ingress</span>
+<span class="font-label-code-lg text-label-code-lg text-primary-fixed mt-0.5">1,620 req/s</span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary-container">+8.4% vs last hour</span>
+</div>
+<svg class="w-16 h-8 text-primary-container" fill="none" viewbox="0 0 64 24">
+<path d="M0 18 L12 16 L22 20 L32 8 L44 14 L54 4 L64 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-low shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Active w3wp Memory</span>
+<span class="font-label-code-lg text-label-code-lg text-secondary mt-0.5">1,482 MB</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Peak: 2,104 MB</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">donut_large</span>
+</div>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-low shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">TLS / SNI Health</span>
+<span class="font-label-code-lg text-label-code-lg text-tertiary mt-0.5">4 Binding Chains</span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary-container">All Certs Valid &gt; 42d</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-tertiary-container">
+<span class="material-symbols-outlined text-[20px]">verified_user</span>
+</div>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-low shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">HTTP.sys Kernel Queue</span>
+<span class="font-label-code-lg text-label-code-lg text-primary mt-0.5">0 Queued</span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary-container">0 Rejections • Latency &lt; 2ms</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[20px]">speed</span>
+</div>
+</div>
+</div>
+<!-- Primary Sites Data Grid (High-Density Modern sysadmin UI) -->
+<div class="rounded-lg bg-surface-container-low shadow-lg overflow-hidden flex flex-col">
+<!-- Grid Subheader with Selection & Counter -->
+<div class="px-space-md py-2 bg-surface-container flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface">Configured Sites Roster</span>
+<span class="font-badge-label text-badge-label px-2 py-0.5 rounded bg-surface-container-high text-primary-container">5 Configured</span>
+</div>
+<div class="flex items-center gap-space-md font-label-code-sm text-label-code-sm text-on-surface-variant">
+<span>Columns: Default (7)</span>
+<button class="hover:text-primary transition-colors flex items-center gap-0.5" onclick="triggerToast('Exporting applicationHost.config site fragments...')" type="button">
+<span class="material-symbols-outlined text-[14px]">file_download</span>
+<span>XML Export</span>
+</button>
+</div>
+</div>
+<!-- The Data Table -->
+<div class="overflow-x-auto w-full">
+<table class="w-full text-left border-collapse select-text">
+<thead>
+<tr class="bg-surface-container-high text-on-surface-variant font-badge-label text-badge-label uppercase tracking-wider h-8">
+<th class="py-1 px-3 w-28">Status</th>
+<th class="py-1 px-3">Site Identifier</th>
+<th class="py-1 px-3">Bindings &amp; Protocols</th>
+<th class="py-1 px-3">Physical Storage Path</th>
+<th class="py-1 px-3">App Pool Runtime</th>
+<th class="py-1 px-3 text-right">Ingress (Req/s)</th>
+<th class="py-1 px-3 text-right">CPU</th>
+<th class="py-1 px-3 text-center w-36">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-high/40 font-label-code-md text-label-code-md">
+<!-- Row 1: api.internal.cloud (Active & Highlighted Selection) -->
+<tr class="bg-surface-container-high/60 hover:bg-surface-container-highest transition-colors group cursor-pointer" onclick="selectPool('CoreClrPool', 'api.internal.cloud', 820, '4.2%', 'No Managed Code', 4820, '340 MB')">
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1.5">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary-container opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+</span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary font-semibold">RUNNING</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5 font-semibold text-primary">
+<span>api.internal.cloud</span>
+<span class="material-symbols-outlined text-[13px] text-tertiary">lock</span>
+</div>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Site ID: 104 • Started</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1">
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-label-code-sm text-label-code-sm text-primary-container">https:*:443</span>
+<span class="px-1 py-0.5 rounded bg-surface-container-lowest text-on-surface-variant font-badge-label text-badge-label" title="SNI: *.internal.cloud">SNI LE-Wildcard</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1 text-on-surface-variant group-hover:text-on-surface">
+<span class="font-label-code-sm text-label-code-sm truncate max-w-xs">C:\apps\api</span>
+<button class="hover:text-primary transition-colors" onclick="event.stopPropagation(); copyText('C:\\apps\\api')" title="Copy Path" type="button">
+<span class="material-symbols-outlined text-[13px]">content_copy</span>
+</button>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-2 py-0.5 rounded bg-primary/10 text-primary-container font-badge-label text-badge-label">
+                CoreClrPool (.NET 8.0)
+              </span>
+</td>
+<td class="py-2 px-3 text-right whitespace-nowrap font-semibold text-tertiary">
+              820 /s
+            </td>
+<td class="py-2 px-3 text-right whitespace-nowrap">
+<span class="text-on-surface font-semibold">4.2%</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center justify-center gap-1 opacity-90 group-hover:opacity-100">
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-primary transition-colors" onclick="event.stopPropagation(); triggerToast('Launching browser: https://api.internal.cloud:443')" title="Browse https://api.internal.cloud" type="button">
+<span class="material-symbols-outlined text-[14px]">open_in_browser</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-tertiary transition-colors" onclick="event.stopPropagation(); triggerToast('Recycled api.internal.cloud')" title="Restart Site" type="button">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-error-container text-on-surface-variant hover:text-on-error-container transition-colors" onclick="event.stopPropagation(); triggerToast('Stopping Site 104...')" title="Stop Site" type="button">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-colors" onclick="event.stopPropagation(); triggerToast('Opening explorer: C:\\apps\\api')" title="Explore Directory" type="button">
+<span class="material-symbols-outlined text-[14px]">folder</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2: Default Web Site -->
+<tr class="hover:bg-surface-container-high transition-colors group cursor-pointer" onclick="selectPool('DefaultAppPool', 'Default Web Site', 110, '0.8%', 'v4.0 Integrated', 2912, '184 MB')">
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary">RUNNING</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex flex-col">
+<span class="font-semibold text-on-surface">Default Web Site</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Site ID: 1 • Root</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1">
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-label-code-sm text-label-code-sm text-on-surface">http:*:80</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-label-code-sm text-label-code-sm text-primary-container">https:*:443</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1 text-on-surface-variant group-hover:text-on-surface">
+<span class="font-label-code-sm text-label-code-sm truncate max-w-xs">C:\inetpub\wwwroot</span>
+<button class="hover:text-primary transition-colors" onclick="event.stopPropagation(); copyText('C:\\inetpub\\wwwroot')" title="Copy Path" type="button">
+<span class="material-symbols-outlined text-[13px]">content_copy</span>
+</button>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-2 py-0.5 rounded bg-surface-container font-badge-label text-badge-label text-on-surface-variant">
+                DefaultAppPool (.NET v4.0)
+              </span>
+</td>
+<td class="py-2 px-3 text-right whitespace-nowrap font-medium text-on-surface">
+              110 /s
+            </td>
+<td class="py-2 px-3 text-right whitespace-nowrap">
+<span class="text-on-surface-variant">0.8%</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-primary transition-colors" onclick="event.stopPropagation(); triggerToast('Launching browser: http://localhost:80')" title="Browse http://localhost:80" type="button">
+<span class="material-symbols-outlined text-[14px]">open_in_browser</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-tertiary transition-colors" onclick="event.stopPropagation(); triggerToast('Restarted Default Web Site')" title="Restart Site" type="button">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-error-container text-on-surface-variant hover:text-on-error-container transition-colors" onclick="event.stopPropagation(); triggerToast('Stopping Site 1...')" title="Stop Site" type="button">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-colors" onclick="event.stopPropagation(); triggerToast('Opening explorer: C:\\inetpub\\wwwroot')" title="Explore Directory" type="button">
+<span class="material-symbols-outlined text-[14px]">folder</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3: identity-auth.corp -->
+<tr class="hover:bg-surface-container-high transition-colors group cursor-pointer" onclick="selectPool('NetFX4_AuthPool', 'identity-auth.corp', 240, '1.9%', 'v4.0 Classic', 5108, '420 MB')">
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary">RUNNING</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5 font-semibold text-on-surface">
+<span>identity-auth.corp</span>
+<span class="material-symbols-outlined text-[13px] text-tertiary">vpn_key</span>
+</div>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Site ID: 108 • OAuth2 IdP</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-label-code-sm text-label-code-sm text-primary-container">https:*:5001</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1 text-on-surface-variant group-hover:text-on-surface">
+<span class="font-label-code-sm text-label-code-sm truncate max-w-xs">C:\apps\identity</span>
+<button class="hover:text-primary transition-colors" onclick="event.stopPropagation(); copyText('C:\\apps\\identity')" title="Copy Path" type="button">
+<span class="material-symbols-outlined text-[13px]">content_copy</span>
+</button>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-2 py-0.5 rounded bg-secondary/10 text-secondary font-badge-label text-badge-label">
+                NetFX4_AuthPool (Isolated)
+              </span>
+</td>
+<td class="py-2 px-3 text-right whitespace-nowrap font-medium text-on-surface">
+              240 /s
+            </td>
+<td class="py-2 px-3 text-right whitespace-nowrap">
+<span class="text-on-surface-variant">1.9%</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-primary transition-colors" onclick="event.stopPropagation(); triggerToast('Launching browser: https://localhost:5001')" title="Browse" type="button">
+<span class="material-symbols-outlined text-[14px]">open_in_browser</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-tertiary transition-colors" onclick="event.stopPropagation(); triggerToast('Restarted identity-auth.corp')" title="Restart" type="button">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-error-container text-on-surface-variant hover:text-on-error-container transition-colors" onclick="event.stopPropagation(); triggerToast('Stopping Site 108...')" title="Stop" type="button">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-colors" onclick="event.stopPropagation(); triggerToast('Opening explorer: C:\\apps\\identity')" title="Explore" type="button">
+<span class="material-symbols-outlined text-[14px]">folder</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4: cdn-assets-cache -->
+<tr class="hover:bg-surface-container-high transition-colors group cursor-pointer" onclick="selectPool('StaticMediaPool', 'cdn-assets-cache', 450, '1.1%', 'No Managed Code', 7120, '512 MB')">
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary">RUNNING</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex flex-col">
+<span class="font-semibold text-on-surface">cdn-assets-cache</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Site ID: 112 • Edge Node</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-label-code-sm text-label-code-sm text-on-surface">http:*:8080</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1 text-on-surface-variant group-hover:text-on-surface">
+<span class="font-label-code-sm text-label-code-sm truncate max-w-xs">C:\storage\cdn</span>
+<button class="hover:text-primary transition-colors" onclick="event.stopPropagation(); copyText('C:\\storage\\cdn')" title="Copy Path" type="button">
+<span class="material-symbols-outlined text-[13px]">content_copy</span>
+</button>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-2 py-0.5 rounded bg-surface-container font-badge-label text-badge-label text-on-surface-variant">
+                StaticMediaPool (Zero Overhead)
+              </span>
+</td>
+<td class="py-2 px-3 text-right whitespace-nowrap font-medium text-tertiary">
+              450 /s
+            </td>
+<td class="py-2 px-3 text-right whitespace-nowrap">
+<span class="text-on-surface-variant">1.1%</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-primary transition-colors" onclick="event.stopPropagation(); triggerToast('Launching browser: http://localhost:8080')" title="Browse" type="button">
+<span class="material-symbols-outlined text-[14px]">open_in_browser</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-tertiary transition-colors" onclick="event.stopPropagation(); triggerToast('Restarted cdn-assets-cache')" title="Restart" type="button">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-error-container text-on-surface-variant hover:text-on-error-container transition-colors" onclick="event.stopPropagation(); triggerToast('Stopping Site 112...')" title="Stop" type="button">
+<span class="material-symbols-outlined text-[14px]">power_settings_new</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-colors" onclick="event.stopPropagation(); triggerToast('Opening explorer: C:\\storage\\cdn')" title="Explore" type="button">
+<span class="material-symbols-outlined text-[14px]">folder</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 5: staging.legacy-portal (Stopped State) -->
+<tr class="hover:bg-surface-container-high transition-colors group cursor-pointer bg-surface-container-lowest/50" onclick="selectPool('LegacyPool', 'staging.legacy-portal', 0, '0.0%', 'v2.0 Classic', null, '0 MB')">
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex rounded-full h-2 w-2 bg-on-surface-variant/60"></span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">STOPPED</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex flex-col">
+<span class="font-semibold text-on-surface-variant">staging.legacy-portal</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant/70">Site ID: 201 • Deprecated</span>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-1.5 py-0.5 rounded bg-surface-container font-label-code-sm text-label-code-sm text-on-surface-variant">http:*:9000</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center gap-1 text-on-surface-variant/70 group-hover:text-on-surface">
+<span class="font-label-code-sm text-label-code-sm truncate max-w-xs">C:\inetpub\staging</span>
+<button class="hover:text-primary transition-colors" onclick="event.stopPropagation(); copyText('C:\\inetpub\\staging')" title="Copy Path" type="button">
+<span class="material-symbols-outlined text-[13px]">content_copy</span>
+</button>
+</div>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<span class="px-2 py-0.5 rounded bg-surface-container font-badge-label text-badge-label text-on-surface-variant/70">
+                LegacyPool (32-bit Compat)
+              </span>
+</td>
+<td class="py-2 px-3 text-right whitespace-nowrap font-medium text-on-surface-variant/50">
+              0 /s
+            </td>
+<td class="py-2 px-3 text-right whitespace-nowrap">
+<span class="text-on-surface-variant/50">0.0%</span>
+</td>
+<td class="py-2 px-3 whitespace-nowrap">
+<div class="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100">
+<button class="p-1 rounded bg-surface-container hover:bg-tertiary-container hover:text-on-tertiary-container text-tertiary transition-colors" onclick="event.stopPropagation(); triggerToast('Starting staging.legacy-portal...')" title="Start Site" type="button">
+<span class="material-symbols-outlined text-[14px]">play_arrow</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-colors" onclick="event.stopPropagation(); triggerToast('Opening Bindings Manager for Site 201')" title="Configure Bindings" type="button">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-colors" onclick="event.stopPropagation(); triggerToast('Opening explorer: C:\\inetpub\\staging')" title="Explore Directory" type="button">
+<span class="material-symbols-outlined text-[14px]">folder</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Footer Bar -->
+<div class="px-space-md py-1.5 bg-surface-container flex items-center justify-between text-on-surface-variant font-label-code-sm text-label-code-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px] text-tertiary">check_circle</span>
+<span>All IIS HTTP.sys modules bound without conflict.</span>
+</div>
+<div class="flex items-center gap-3">
+<span>Rows: 5 of 5 filtered</span>
+<span class="text-primary-container font-semibold">Tauri Native FFI: 0.4ms dispatch</span>
+</div>
+</div>
+</div>
+<!-- Bottom App Pools Inspector Panel (Deep Diagnostics Cockpit) -->
+<div class="rounded-lg bg-surface-container-low shadow-xl p-space-md flex flex-col gap-space-sm relative overflow-hidden">
+<!-- Subtle top laser glow accent line -->
+<div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary-container to-transparent opacity-80"></div>
+<!-- Inspector Header & Pool Header Info -->
+<div class="flex flex-wrap items-center justify-between gap-space-sm pb-space-xs">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded bg-surface-container-highest flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[20px]">precision_manufacturing</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface">Application Pool Inspector:</span>
+<span class="font-headline-sm text-headline-sm text-primary font-bold" id="insp-pool-name">CoreClrPool</span>
+<span class="px-1.5 py-0.5 rounded bg-tertiary/10 font-badge-label text-badge-label text-tertiary font-bold">ATTACHED &amp; HEALTHY</span>
+</div>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant" id="insp-bound-site">Hosting Primary Worker for: <span class="text-on-surface">api.internal.cloud</span></span>
+</div>
+</div>
+<!-- Quick Actions for Pool -->
+<div class="flex items-center gap-space-xs">
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container hover:bg-surface-container-highest text-primary-container font-headline-sm text-headline-sm transition-all shadow-sm" id="btn-recycle-now" onclick="recycleActivePool()" type="button">
+<span class="material-symbols-outlined text-[16px]" id="recycle-icon">autorenew</span>
+<span>Recycle Now</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface font-body-md text-body-md transition-colors" onclick="triggerToast('Capturing live procdump of w3wp.exe (PID 4820)...')" type="button">
+<span class="material-symbols-outlined text-[16px] text-secondary">terminal</span>
+<span>View w3wp Dump</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface font-body-md text-body-md transition-colors" onclick="triggerModal('Advanced Pool Settings Editor: CoreClrPool')" type="button">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+<span>Edit Advanced Settings</span>
+</button>
+</div>
+</div>
+<!-- Diagnostics Bento Grid (3 Pillars) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-md pt-space-xs">
+<!-- Col 1: CLR & Architecture Runtime -->
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between">
+<div class="flex items-center justify-between pb-1">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">CLR Execution Engine</span>
+<span class="font-label-code-sm text-label-code-sm text-primary">Kestrel / In-Process</span>
+</div>
+<div class="flex flex-col gap-1.5 font-label-code-md text-label-code-md">
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">.NET CLR Version:</span>
+<span class="text-on-surface font-semibold" id="insp-clr-ver">No Managed Code</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Managed Pipeline:</span>
+<span class="text-tertiary font-semibold">Integrated (v2.0+)</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Enable 32-bit Apps:</span>
+<span class="text-on-surface font-semibold">False (x64 Pure)</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Start Mode:</span>
+<span class="text-primary-container font-semibold">AlwaysRunning (Pre-warm)</span>
+</div>
+</div>
+</div>
+<!-- Col 2: Worker Process Attachment -->
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between">
+<div class="flex items-center justify-between pb-1">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Attached w3wp Process</span>
+<span class="flex items-center gap-1 font-label-code-sm text-label-code-sm text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+<span>Healthy</span>
+</span>
+</div>
+<div class="flex flex-col gap-1.5 font-label-code-md text-label-code-md">
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Active PID:</span>
+<span class="text-primary font-bold font-label-code-lg text-label-code-lg" id="insp-pid">4820</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Working Set (RAM):</span>
+<span class="text-on-surface font-semibold" id="insp-ram">340 MB Private</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Thread Pool Size:</span>
+<span class="text-on-surface font-semibold">12 Worker / 4 I/O</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Identity Principal:</span>
+<span class="text-on-surface-variant truncate max-w-[140px]">ApplicationPoolIdentity</span>
+</div>
+</div>
+</div>
+<!-- Col 3: Auto-Recycle Governance Rules -->
+<div class="p-space-sm rounded bg-surface-container-lowest flex flex-col justify-between">
+<div class="flex items-center justify-between pb-1">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Recycling Directives</span>
+<span class="material-symbols-outlined text-[16px] text-secondary">update</span>
+</div>
+<div class="flex flex-col gap-1.5 font-label-code-md text-label-code-md">
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Periodic Interval:</span>
+<span class="text-on-surface font-semibold">1,740 min (29 hrs)</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Private Memory Limit:</span>
+<span class="text-primary font-semibold">2,048 MB Hard Cap</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Scheduled Window:</span>
+<span class="text-secondary font-semibold">04:00 AM UTC</span>
+</div>
+<div class="flex items-center justify-between">
+<span class="text-on-surface-variant">Request Limit:</span>
+<span class="text-on-surface-variant">0 (Unlimited)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Toast Layer (Tauri Native Sim) -->
+<div class="fixed bottom-12 right-6 bg-surface-container-highest text-on-surface px-4 py-2.5 rounded shadow-2xl flex items-center gap-2 font-label-code-md text-label-code-md translate-y-24 opacity-0 transition-all duration-300 pointer-events-none z-50" id="sys-toast">
+<span class="material-symbols-outlined text-primary-container text-[18px]">info</span>
+<span id="sys-toast-text">Executing action...</span>
+</div>
+<!-- Generic Modal Shell -->
+<div class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4" id="sys-modal">
+<div class="bg-surface-container-low p-space-lg rounded-xl shadow-2xl max-w-lg w-full flex flex-col gap-space-md">
+<div class="flex items-center justify-between pb-2">
+<span class="font-headline-lg text-headline-lg text-primary" id="modal-title">IIS Operation</span>
+<button class="text-on-surface-variant hover:text-on-surface" onclick="closeModal()" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="flex flex-col gap-space-sm font-body-md text-body-md text-on-surface-variant">
+<p>You have triggered an administrator directive within the Tauri Native Web Server Engine.</p>
+<div class="p-space-sm rounded bg-surface-container-lowest font-label-code-sm text-label-code-sm text-on-surface">
+          Direct FFI binding: <span class="text-primary-container">Microsoft.Web.Administration.ServerManager</span>
+</div>
+<p>All configuration edits are instantly written to <code class="text-secondary font-label-code-sm text-label-code-sm">C:\Windows\System32\inetsrv\config\applicationHost.config</code>.</p>
+</div>
+<div class="flex items-center justify-end gap-space-sm pt-2">
+<button class="px-3 py-1.5 rounded bg-surface-container text-on-surface font-body-md text-body-md hover:bg-surface-container-high transition-colors" onclick="closeModal()" type="button">
+          Cancel
+        </button>
+<button class="px-4 py-1.5 rounded bg-primary-container text-on-primary font-headline-sm text-headline-sm shadow-md hover:brightness-110 transition-all" onclick="closeModal(); triggerToast('Settings successfully persisted.');" type="button">
+          Confirm &amp; Commit
+        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Client-side Interactive Logic -->
+<script>
+  function switchMainTab(mode) {
+    const tabSites = document.getElementById('tab-sites');
+    const tabPools = document.getElementById('tab-pools');
+    
+    if (mode === 'sites') {
+      tabSites.className = "flex items-center gap-space-xs px-3 py-1.5 rounded-lg bg-surface-container-high text-primary font-headline-sm text-headline-sm transition-all shadow-sm";
+      tabPools.className = "flex items-center gap-space-xs px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-headline-sm text-headline-sm transition-all";
+      triggerToast("Viewing Sites Cluster (5 visible)");
+    } else {
+      tabPools.className = "flex items-center gap-space-xs px-3 py-1.5 rounded-lg bg-surface-container-high text-secondary font-headline-sm text-headline-sm transition-all shadow-sm";
+      tabSites.className = "flex items-center gap-space-xs px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-headline-sm text-headline-sm transition-all";
+      triggerToast("Switched to Application Pools view (6 pools active)");
+    }
+  }
+
+  function selectPool(poolName, siteName, reqs, cpu, clrVer, pid, ram) {
+    document.getElementById('insp-pool-name').innerText = poolName;
+    document.getElementById('insp-bound-site').innerHTML = 'Hosting Primary Worker for: <span class="text-on-surface">' + siteName + '</span>';
+    document.getElementById('insp-clr-ver').innerText = clrVer;
+    document.getElementById('insp-pid').innerText = pid ? pid : 'NONE';
+    document.getElementById('insp-ram').innerText = ram;
+    triggerToast("Loaded inspector for pool: " + poolName);
+  }
+
+  function recycleActivePool() {
+    const icon = document.getElementById('recycle-icon');
+    const pool = document.getElementById('insp-pool-name').innerText;
+    icon.classList.add('animate-spin');
+    triggerToast("Executing graceful overlap recycle for " + pool + "...");
+    
+    setTimeout(() => {
+      icon.classList.remove('animate-spin');
+      const newPid = Math.floor(4000 + Math.random() * 3000);
+      document.getElementById('insp-pid').innerText = newPid;
+      triggerToast(pool + " recycled successfully! New worker assigned PID " + newPid);
+    }, 1100);
+  }
+
+  function copyText(str) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(str);
+      triggerToast("Copied to clipboard: " + str);
+    } else {
+      triggerToast("Path: " + str);
+    }
+  }
+
+  function triggerToast(msg) {
+    const toast = document.getElementById('sys-toast');
+    const text = document.getElementById('sys-toast-text');
+    text.innerText = msg;
+    toast.classList.remove('translate-y-24', 'opacity-0');
+    toast.classList.add('translate-y-0', 'opacity-100');
+    
+    if (window._toastTimeout) clearTimeout(window._toastTimeout);
+    window._toastTimeout = setTimeout(() => {
+      toast.classList.remove('translate-y-0', 'opacity-100');
+      toast.classList.add('translate-y-24', 'opacity-0');
+    }, 3200);
+  }
+
+  function triggerModal(title) {
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('sys-modal').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('sys-modal').classList.add('hidden');
+  }
+
+  // Interactive Live Filter
+  document.getElementById('siteSearchInput').addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(term) ? '' : 'none';
+    });
+  });
+
+  // Global hotkey simulator for Ctrl+K
+  window.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const input = document.getElementById('siteSearchInput');
+      input.focus();
+      input.select();
+    }
+  });
+</script></main></div><footer class="fixed bottom-0 left-0 right-0 h-8 bg-surface-container-lowest/95 backdrop-blur-xl z-50 flex items-center justify-between px-space-md text-on-surface-variant font-label-code-sm text-label-code-sm"><div class="flex items-center gap-space-md"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>Socket: W3SVC Connected</span><span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary">lock</span>SSL Certs: 8 Valid</span><span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px] text-secondary">bolt</span>HTTP/3 QUIC: Enabled</span></div><div class="flex items-center gap-space-md"><span class="text-on-surface-variant">Ports: 80, 443 [LISTENING]</span><button class="flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high text-primary hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">restart_alt</span>Restart W3SVC</button></div></footer></body></html>

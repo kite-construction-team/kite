@@ -1,0 +1,22 @@
+{
+  "id": "sample-python-api",
+  "name": "python-api.local",
+  "desiredState": "Started",
+  "bindings": [
+    {
+      "protocol": "http",
+      "ipAddress": "*",
+      "port": 8082,
+      "host": "*"
+    }
+  ],
+  "rootApplication": {
+    "path": "/",
+    "poolId": "python-pool",
+    "physicalPath": "N:/Repo/kite/samples/Sample.PythonApi",
+    "hostingMode": "OutOfProcessProxy",
+    "executable": "python",
+    "arguments": "app.py",
+    "enableStreamingPassThrough": true
+  }
+}

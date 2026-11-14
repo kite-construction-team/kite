@@ -1,0 +1,4 @@
+# Standard-library app.py requires zero third-party packages on Python 3.8+.
+# Optional production ASGI stack if you swap arguments to "-m uvicorn asgi_app:app --host 127.0.0.1 --port {port}":
+# fastapi>=0.115.0
+# uvicorn>=0.32.0

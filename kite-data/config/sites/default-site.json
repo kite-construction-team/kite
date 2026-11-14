@@ -1,0 +1,198 @@
+{
+  "$schema": "https://kite.local/schemas/site.v1.json",
+  "id": "default-site",
+  "name": "Default Web Site",
+  "desiredState": "Started",
+  "bindings": [
+    {
+      "protocol": "http",
+      "ipAddress": "*",
+      "port": 8080,
+      "host": "*"
+    },
+    {
+      "protocol": "https",
+      "ipAddress": "*",
+      "port": 8443,
+      "host": "localhost",
+      "tls": {
+        "useSelfSignedDevelopmentCert": true,
+        "allowHttp2": true,
+        "allowHttp3": true,
+        "allowTls12": true,
+        "allowTls13": true
+      }
+    }
+  ],
+  "rootApplication": {
+    "path": "/",
+    "poolId": "default-pool",
+    "physicalPath": "N:\\Repo\\kite\\kite-data\\wwwroot\\default-site",
+    "hostingMode": "StaticOnly",
+    "canaryWeightPercent": 0,
+    "enableStreamingPassThrough": false,
+    "virtualDirectories": []
+  },
+  "nestedApplications": [],
+  "features": {
+    "inheritServerDefaults": true,
+    "defaultDocuments": [
+      "index.html",
+      "default.html",
+      "index.htm"
+    ],
+    "directoryBrowsing": false,
+    "compression": {
+      "enabled": true,
+      "minSizeBytes": 128,
+      "encodings": [
+        "zstd",
+        "br",
+        "gzip",
+        "deflate"
+      ],
+      "brotliLevel": 5,
+      "zstdLevel": 3,
+      "gzipLevel": 7
+    },
+    "caching": {
+      "enabled": true,
+      "defaultMaxAgeSeconds": 3600,
+      "maxCacheBodyBytes": 4194304,
+      "maxCacheSizeMegabytes": 500,
+      "flushGeneration": 1
+    },
+    "hsts": {
+      "enabled": false,
+      "maxAgeSeconds": 31536000,
+      "includeSubDomains": true,
+      "preload": false
+    },
+    "customHeaders": {},
+    "removeHeaders": [
+      "X-Powered-By"
+    ],
+    "stripServerHeader": true,
+    "w3CLoggingEnabled": true,
+    "urlRewrite": {
+      "enabled": true,
+      "rules": []
+    },
+    "redirectsAndErrors": {
+      "enforceTrailingSlash": false,
+      "permanentRedirect": true,
+      "errorMode": "PassThrough",
+      "customErrorPages": {}
+    },
+    "mimeMappings": {
+      "fallbackContentType": "application/octet-stream",
+      "customMappings": {
+        ".wasm": "application/wasm",
+        ".json": "application/json; charset=utf-8",
+        ".br": "application/brotli",
+        ".zst": "application/zstd",
+        ".svg": "image/svg\u002Bxml"
+      }
+    },
+    "cors": {
+      "enabled": false,
+      "allowedOrigins": [],
+      "allowedMethods": "GET, POST, PUT, DELETE, OPTIONS",
+      "allowedHeaders": "*",
+      "allowCredentials": false
+    },
+    "tlsPolicy": {
+      "enforceTls13": false,
+      "strictSni": true,
+      "enableAcmeHttp01PassThrough": true,
+      "acme": {
+        "enabled": false,
+        "directoryUrl": "https://acme-v02.api.letsencrypt.org/directory",
+        "acceptTermsOfService": false,
+        "challengeType": "Http01",
+        "renewBeforeDays": 30,
+        "domains": []
+      },
+      "mtls": {
+        "clientCertificateMode": "None",
+        "trustedThumbprints": []
+      }
+    },
+    "authentication": {
+      "anonymousEnabled": true,
+      "jwtEnabled": false,
+      "jwtSigningAlgorithm": "HS256",
+      "apiKeyEnabled": false,
+      "apiKeyHeaderName": "X-API-Key",
+      "allowedApiKeys": [],
+      "basicAuthEnabled": false,
+      "basicAuthRealm": "Kite Restricted",
+      "basicAuthUsers": {}
+    },
+    "ipRestrictions": {
+      "enabled": false,
+      "allowUnmatched": true,
+      "denyStatusCode": 403,
+      "rules": []
+    },
+    "requestFiltering": {
+      "enabled": true,
+      "maxAllowedContentLength": 31457280,
+      "maxUrlLength": 4096,
+      "maxQueryStringLength": 2048,
+      "allowHighBitCharacters": true,
+      "allowDoubleEscaping": false,
+      "allowedVerbs": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "HEAD",
+        "OPTIONS",
+        "PATCH"
+      ],
+      "blockedExtensions": [
+        ".config",
+        ".env",
+        ".pfx",
+        ".key",
+        ".pdb"
+      ]
+    },
+    "failedRequestTracing": {
+      "enabled": true,
+      "statusCodeTrigger": "500-599",
+      "latencyCutoffMilliseconds": 3000,
+      "maxRetainedTraces": 50
+    },
+    "earlyHintsLinks": [],
+    "rateLimiting": {
+      "enabled": false,
+      "algorithm": "SlidingWindow",
+      "permitLimit": 100,
+      "windowSeconds": 10,
+      "segmentsPerWindow": 2,
+      "queueLimit": 0,
+      "partitionByHeader": "",
+      "retryAfterSeconds": 10
+    },
+    "spaFallback": {
+      "enabled": false,
+      "fallbackDocument": "/index.html",
+      "excludePrefixes": [
+        "/api",
+        "/assets",
+        "/.well-known",
+        "/__kite"
+      ]
+    },
+    "edgeWaf": {
+      "enabled": false,
+      "blockSqlInjection": true,
+      "blockXss": true,
+      "blockPathTraversal": true,
+      "blockedUserAgents": [],
+      "customBlockedPatterns": []
+    }
+  }
+}

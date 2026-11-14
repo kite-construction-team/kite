@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Kite.Desktop.WinForms</RootNamespace>
+    <ApplicationIcon>Assets\kite.ico</ApplicationIcon>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <RetainVMGarbageCollection>false</RetainVMGarbageCollection>
+    <CopyRetryCount>1</CopyRetryCount>
+    <CopyRetryDelayMilliseconds>100</CopyRetryDelayMilliseconds>
+    <WebView2SdkDir>C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\ModelBuilder</WebView2SdkDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\kite.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kite.Core\Kite.Core.csproj" />
+    <ProjectReference Include="..\Kite.Management.Core\Kite.Management.Core.csproj" />
+    <ProjectReference Include="..\Kite.Management.Web\Kite.Management.Web.csproj" />
+    <ProjectReference Include="..\Kite.Server\Kite.Server.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(WebView2SdkDir)\Microsoft.Web.WebView2.Core.dll')">
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>$(WebView2SdkDir)\Microsoft.Web.WebView2.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms">
+      <HintPath>$(WebView2SdkDir)\Microsoft.Web.WebView2.WinForms.dll</HintPath>
+    </Reference>
+    <None Include="$(WebView2SdkDir)\runtimes\win-x64\native\WebView2Loader.dll" Condition="Exists('$(WebView2SdkDir)\runtimes\win-x64\native\WebView2Loader.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>WebView2Loader.dll</Link>
+    </None>
+  </ItemGroup>
+</Project>

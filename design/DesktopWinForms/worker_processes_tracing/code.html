@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior: none; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-dim": "#131317", "on-error-container": "#ffdad6", "on-secondary-fixed-variant": "#6700b5", "tertiary": "#e1ffec", "on-tertiary-fixed": "#002113", "surface-container-low": "#1b1b1f", "background": "#131317", "on-secondary-fixed": "#2c0051", "outline": "#849495", "inverse-primary": "#00696f", "on-primary-fixed-variant": "#004f53", "inverse-surface": "#e4e1e7", "surface-container-highest": "#353439", "primary-container": "#00f2fe", "on-primary-container": "#006a70", "error": "#ffb4ab", "secondary-fixed": "#efdbff", "on-error": "#690005", "secondary-container": "#7701d0", "surface-container": "#1f1f23", "surface-tint": "#00dce6", "on-secondary-container": "#dcb7ff", "secondary": "#dcb8ff", "on-background": "#e4e1e7", "on-tertiary": "#003824", "secondary-fixed-dim": "#dcb8ff", "on-secondary": "#480081", "on-tertiary-container": "#006e4b", "on-primary-fixed": "#002022", "primary-fixed-dim": "#00dce6", "surface": "#131317", "on-tertiary-fixed-variant": "#005236", "error-container": "#93000a", "tertiary-fixed-dim": "#4edea3", "primary-fixed": "#6ff6ff", "primary": "#e0fdff", "surface-container-high": "#2a292e", "on-surface": "#e4e1e7", "on-primary": "#00373a", "surface-bright": "#39393d", "tertiary-fixed": "#6ffbbe", "inverse-on-surface": "#303034", "tertiary-container": "#67f4b7", "on-surface-variant": "#b9cacb", "surface-variant": "#353439", "surface-container-lowest": "#0e0e12", "outline-variant": "#3a494b" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "margin": "1rem", "space-xl": "1.5rem", "gutter": "0.75rem", "space-sm": "0.5rem", "space-lg": "1rem", "margin-window": "0.5rem", "gutter-dense": "0.5rem", "space-xs": "0.25rem", "space-md": "0.75rem" }, "fontFamily": { "label-code-lg": ["JetBrains Mono"], "headline-sm": ["Inter"], "body-sm": ["Inter"], "label-code-sm": ["JetBrains Mono"], "badge-label": ["JetBrains Mono"], "body-md": ["Inter"], "headline-lg": ["Inter"], "headline-xl": ["Inter"], "label-code-md": ["JetBrains Mono"], "body-lg": ["Inter"] }, "fontSize": { "label-code-lg": ["13px", { "lineHeight": "18px", "letterSpacing": "-0.01em", "fontWeight": "500" }], "headline-sm": ["14px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400" }], "label-code-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500" }], "badge-label": ["9px", { "lineHeight": "12px", "letterSpacing": "0.06em", "fontWeight": "700" }], "body-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" }], "headline-lg": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "headline-xl": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "label-code-md": ["11px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "400" }], "body-lg": ["14px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400" }] } } } };</script></head><body class="bg-surface-container-lowest text-on-surface select-none overflow-x-hidden min-h-screen"><header class="fixed top-0 left-0 right-0 h-14 bg-surface-container-lowest/90 backdrop-blur-xl z-50 flex items-center justify-between px-space-md shadow-[0_1px_8px_rgba(0,0,0,0.4)]" data-tauri-drag-region=""><div class="flex items-center gap-space-md pointer-events-auto"><img alt="IIS Tauri Icon" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ALJJyrBkuhOPd7W7suiMIqW6dnHqB-xWkBUrWWuea-14X8l8VKsX_abJjXZiApZzImguaW71xUGmuWwNffi-IGarKEwha0SLRlRdx4fqi5RB6qN3qLNjNnNtF66Z1vAXJvPRCbhb1oCcbTMJya2D0tRJtEg4yRJHrerhNRxuMIw_RlkZGEbOzBLW6PwM8_sqTaNInpwgwFPke3NtVYgCn7rFW4FtixLXUyF0Z9xrXTM18zpV"/><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-primary tracking-tight font-semibold">IIS Manager Studio v11.4</span><span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Tauri Runtime • x64 Native</span></div><div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-surface-container text-tertiary"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container animate-pulse"></span><span class="font-label-code-sm text-label-code-sm font-medium">WIN-SRV-2025-CORE [Localhost] • W3SVC Running</span></div></div><div class="flex items-center gap-space-md flex-1 max-w-md mx-space-xl pointer-events-auto"><div class="relative w-full"><span class="material-symbols-outlined absolute left-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span><input class="w-full pl-8 pr-12 py-1 rounded bg-surface-container-low text-on-surface font-label-code-md text-label-code-md placeholder:text-on-surface-variant/50 focus:outline-none focus:bg-surface-container" placeholder="Filter sites, pools, workers, or config directives..." type="text"/><span class="absolute right-space-sm top-1/2 -translate-y-1/2 font-badge-label text-badge-label bg-surface-container-high px-1 rounded text-on-surface-variant">CTRL+K</span></div></div><div class="flex items-center gap-space-sm pointer-events-auto"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><div class="flex items-center ml-space-xs"><button aria-label="Minimize" class="h-8 w-8 flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">minimize</span></button><button aria-label="Maximize" class="h-8 w-8 flex items-center justify-center hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">crop_square</span></button><button aria-label="Close" class="h-8 w-8 flex items-center justify-center hover:bg-error-container text-on-surface-variant hover:text-on-error-container transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></header><aside class="fixed left-0 top-14 bottom-8 w-72 bg-surface-container-low/95 backdrop-blur-xl z-40 flex flex-col justify-between overflow-y-auto"><div class="p-space-sm"><div class="flex items-center gap-space-sm px-space-sm py-space-xs rounded bg-surface-container text-on-surface mb-space-sm"><span class="material-symbols-outlined text-primary-container text-[18px]">dns</span><div class="flex flex-col truncate"><span class="font-label-code-md text-label-code-md text-on-surface font-semibold truncate">DESKTOP-SRV</span><span class="font-label-code-sm text-label-code-sm text-on-surface-variant truncate">IIS 10.0 Express/Standard</span></div></div><nav class="flex flex-col gap-0.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold rounded-lg"><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="dashboard-and-telemetry" href="#"><span class="material-symbols-outlined text-[18px]">speed</span><span>Dashboard &amp; Telemetry</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="sites-and-app-pools" href="#"><span class="material-symbols-outlined text-[18px]">lan</span><span>Sites &amp; App Pools</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="configuration-and-features" href="#"><span class="material-symbols-outlined text-[18px]">tune</span><span>Configuration &amp; Features</span></a><a class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-body-md text-body-md" data-path="worker-processes-and-tracing" href="#"><span class="material-symbols-outlined text-[18px]">analytics</span><span>Worker Processes &amp; Tracing</span></a></nav><div class="mt-space-md pt-space-xs"><div class="flex items-center justify-between px-space-sm py-0.5 text-on-surface-variant font-badge-label text-badge-label uppercase tracking-wider"><span>Sites Inventory</span><span class="font-label-code-sm text-label-code-sm text-primary">4 Online</span></div><div class="flex flex-col gap-0.5 mt-1"><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>Default Web Site</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:80</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>api.internal.io</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:443</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>auth-service</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:8443</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>cdn-gateway</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">:8080</span></div></div></div><div class="mt-space-md pt-space-xs"><div class="flex items-center justify-between px-space-sm py-0.5 text-on-surface-variant font-badge-label text-badge-label uppercase tracking-wider"><span>Application Pools</span><span class="font-label-code-sm text-label-code-sm text-secondary">3 Running</span></div><div class="flex flex-col gap-0.5 mt-1"><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>DefaultAppPool</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">v4.0</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>CoreCLR_Pool</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">No Managed</span></div><div class="flex items-center justify-between px-space-sm py-1 rounded hover:bg-surface-container-high text-on-surface font-label-code-sm text-label-code-sm"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>NetFX4_Pool</span><span class="text-on-surface-variant font-label-code-sm text-label-code-sm">Classic</span></div></div></div></div><div class="p-space-sm m-space-xs rounded bg-surface-container-lowest text-on-surface"><div class="flex items-center justify-between mb-space-xs"><span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Host Resources</span><span class="font-label-code-sm text-label-code-sm text-tertiary-container">Normal</span></div><div class="grid grid-cols-2 gap-space-xs font-label-code-sm text-label-code-sm text-on-surface-variant"><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">CPU Load</span><span class="text-on-surface font-semibold">14% (8c/16t)</span></div><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">Physical RAM</span><span class="text-on-surface font-semibold">3.2 / 16 GB</span></div><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">W3SVC Uptime</span><span class="text-on-surface font-semibold">18d 4h 22m</span></div><div class="flex flex-col"><span class="text-[10px] text-on-surface-variant/70">Tauri Native</span><span class="text-primary-container font-semibold">24 MB RSS</span></div></div></div></aside><div class="pl-72"><main class="pt-14 pb-8 min-h-screen w-full px-space-lg bg-surface-container-lowest"><div class="flex flex-col w-full gap-space-lg pb-10">
+<!-- Sub-Header & Live Control Deck -->
+<div class="flex flex-wrap items-center justify-between gap-space-md bg-surface-container-low p-space-md rounded-xl shadow-lg">
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-label-code-sm text-label-code-sm uppercase tracking-wider text-primary-fixed-dim">W3SVC // KERNEL RUNTIME</span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">ETW Real-Time Provider</span>
+</div>
+<div class="flex items-baseline gap-space-sm">
+<h1 class="font-headline-lg text-headline-lg text-primary tracking-tight font-semibold">Active Worker Processes (<span class="font-label-code-lg text-label-code-lg text-primary-container">w3wp.exe</span>)</h1>
+<span class="font-label-code-sm text-label-code-sm text-tertiary-container bg-surface-container px-space-xs py-0.5 rounded">3 Active Instances</span>
+</div>
+</div>
+<!-- Global Telemetry Micro-Stat Ticker -->
+<div class="flex items-center gap-space-md bg-surface-container px-space-md py-1.5 rounded-lg shadow-inner">
+<div class="flex items-center gap-space-sm">
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Aggregate RPS</span>
+<span class="font-label-code-lg text-label-code-lg text-primary-container font-semibold">1,428 req/s</span>
+</div>
+<div class="h-6 w-16">
+<svg class="w-full h-full text-primary-container" fill="none" viewbox="0 0 60 20">
+<path d="M0 12 L10 14 L20 8 L30 15 L40 5 L50 9 L60 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path>
+</svg>
+</div>
+</div>
+<div class="w-px h-6 bg-surface-variant"></div>
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">Avg Pipe Latency</span>
+<span class="font-label-code-lg text-label-code-lg text-tertiary-container font-semibold">14.2 ms</span>
+</div>
+<div class="w-px h-6 bg-surface-variant"></div>
+<div class="flex flex-col">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">FREB Captured</span>
+<span class="font-label-code-lg text-label-code-lg text-secondary font-semibold">19 events</span>
+</div>
+</div>
+<!-- Actions & Streaming Controller -->
+<div class="flex items-center gap-space-sm">
+<button class="flex items-center gap-space-xs px-space-md py-1.5 rounded-lg bg-surface-container text-tertiary font-label-code-md text-label-code-md hover:bg-surface-container-high transition-all shadow-md group" id="stream-toggle-btn" type="button">
+<span class="w-2 h-2 rounded-full bg-tertiary-container shadow-[0_0_8px_#67f4b7] animate-pulse" id="stream-indicator"></span>
+<span class="font-medium" id="stream-text">Streaming Live</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-1.5 rounded-lg bg-primary-container text-on-primary-container font-label-code-md text-label-code-md hover:bg-primary-fixed transition-colors shadow-md font-semibold" onclick="triggerProcessDumpModal()" type="button">
+<span class="material-symbols-outlined text-[16px]">memory</span>
+<span>Dump Memory</span>
+</button>
+</div>
+</div>
+<!-- TOP HALF: Active Worker Processes Table -->
+<div class="flex flex-col bg-surface-container-low rounded-xl shadow-xl overflow-hidden">
+<div class="flex items-center justify-between px-space-md py-2.5 bg-surface-container">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px] text-primary-container">lan</span>
+<span class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Isolated Execution Engines</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant bg-surface-container-highest px-1.5 py-0.5 rounded">Kernel IIS v10.0 x64</span>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-label-code-sm text-label-code-sm">
+<span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>Normal Working Set</span>
+<span class="flex items-center gap-1 ml-2"><span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>CLR High Alloc</span>
+</div>
+</div>
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high text-on-surface-variant font-badge-label text-badge-label uppercase tracking-wider">
+<th class="py-2 px-space-md">Process ID / App Pool</th>
+<th class="py-2 px-space-md">CLR Engine Runtime</th>
+<th class="py-2 px-space-md w-48">CPU Allocation</th>
+<th class="py-2 px-space-md">Private WS</th>
+<th class="py-2 px-space-md">Virt Mem</th>
+<th class="py-2 px-space-md">Requests (Active / Q)</th>
+<th class="py-2 px-space-md text-right">Process Diagnostics</th>
+</tr>
+</thead>
+<tbody class="divide-y-0 font-label-code-md text-label-code-md">
+<!-- Row 1: CoreClrPool -->
+<tr class="hover:bg-surface-container transition-colors group relative">
+<td class="py-2.5 px-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="w-1.5 h-5 rounded-full bg-primary-container group-hover:shadow-[0_0_8px_#00f2fe] transition-all"></span>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-semibold text-primary">PID 4820</span>
+<span class="text-[9px] px-1 py-0.2 rounded bg-surface-container-highest text-primary-container font-medium">CORE</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">CoreClrPool</span>
+</div>
+</div>
+</td>
+<td class="py-2.5 px-space-md text-on-surface-variant font-body-sm text-body-sm">
+<div class="flex flex-col">
+<span class="text-on-surface font-medium font-label-code-sm text-label-code-sm">.NET 8.0.4 CLR</span>
+<span class="text-[11px] text-tertiary-container">Kestrel In-Process (CoreShim)</span>
+</div>
+</td>
+<td class="py-2.5 px-space-md">
+<div class="flex flex-col gap-1 w-full max-w-[160px]">
+<div class="flex justify-between font-label-code-sm text-label-code-sm">
+<span class="text-primary-container font-semibold">18.4%</span>
+<span class="text-on-surface-variant">Core #3, #7</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary-container shadow-[0_0_8px_#00f2fe]" style="width: 18.4%;"></div>
+</div>
+</div>
+</td>
+<td class="py-2.5 px-space-md font-semibold text-on-surface">342.1 MB</td>
+<td class="py-2.5 px-space-md text-on-surface-variant">2.41 GB</td>
+<td class="py-2.5 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-highest">
+<span class="text-tertiary-container font-semibold">14</span>
+<span class="text-on-surface-variant text-[10px]">running</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-secondary font-medium">2</span>
+<span class="text-on-surface-variant text-[10px]">queued</span>
+</div>
+</td>
+<td class="py-2.5 px-space-md text-right">
+<div class="flex items-center justify-end gap-1.5">
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-primary-container transition-colors" title="Recycle App Pool" type="button">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface transition-colors" title="Create Crash Dump (.dmp)" type="button">
+<span class="material-symbols-outlined text-[16px]">file_download</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-secondary transition-colors" onclick="openThreadInspector('PID 4820', 'CoreClrPool')" title="Inspect Threads" type="button">
+<span class="material-symbols-outlined text-[16px]">account_tree</span>
+</button>
+<button class="p-1.5 rounded hover:bg-error-container text-error hover:text-on-error-container transition-colors" title="Kill Process" type="button">
+<span class="material-symbols-outlined text-[16px]">cancel</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2: DefaultAppPool -->
+<tr class="hover:bg-surface-container transition-colors group relative bg-surface-container-lowest/40">
+<td class="py-2.5 px-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="w-1.5 h-5 rounded-full bg-secondary transition-all"></span>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-semibold text-primary">PID 5112</span>
+<span class="text-[9px] px-1 py-0.2 rounded bg-surface-container-highest text-secondary-fixed-dim font-medium">LEGACY</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">DefaultAppPool</span>
+</div>
+</div>
+</td>
+<td class="py-2.5 px-space-md text-on-surface-variant font-body-sm text-body-sm">
+<div class="flex flex-col">
+<span class="text-on-surface font-medium font-label-code-sm text-label-code-sm">.NET Framework 4.8.1</span>
+<span class="text-[11px] text-on-surface-variant">Integrated Pipeline Mode</span>
+</div>
+</td>
+<td class="py-2.5 px-space-md">
+<div class="flex flex-col gap-1 w-full max-w-[160px]">
+<div class="flex justify-between font-label-code-sm text-label-code-sm">
+<span class="text-secondary font-semibold">4.2%</span>
+<span class="text-on-surface-variant">Core #1</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary shadow-[0_0_8px_#dcb8ff]" style="width: 4.2%;"></div>
+</div>
+</div>
+</td>
+<td class="py-2.5 px-space-md font-semibold text-on-surface">198.6 MB</td>
+<td class="py-2.5 px-space-md text-on-surface-variant">1.18 GB</td>
+<td class="py-2.5 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-highest">
+<span class="text-tertiary-container font-semibold">3</span>
+<span class="text-on-surface-variant text-[10px]">running</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-on-surface-variant font-medium">0</span>
+<span class="text-on-surface-variant text-[10px]">queued</span>
+</div>
+</td>
+<td class="py-2.5 px-space-md text-right">
+<div class="flex items-center justify-end gap-1.5">
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-primary-container transition-colors" title="Recycle App Pool" type="button">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface transition-colors" title="Create Crash Dump (.dmp)" type="button">
+<span class="material-symbols-outlined text-[16px]">file_download</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-secondary transition-colors" onclick="openThreadInspector('PID 5112', 'DefaultAppPool')" title="Inspect Threads" type="button">
+<span class="material-symbols-outlined text-[16px]">account_tree</span>
+</button>
+<button class="p-1.5 rounded hover:bg-error-container text-error hover:text-on-error-container transition-colors" title="Kill Process" type="button">
+<span class="material-symbols-outlined text-[16px]">cancel</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3: IdentityPool -->
+<tr class="hover:bg-surface-container transition-colors group relative">
+<td class="py-2.5 px-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="w-1.5 h-5 rounded-full bg-error transition-all"></span>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-semibold text-primary">PID 9024</span>
+<span class="text-[9px] px-1 py-0.2 rounded bg-error-container text-error font-medium">HIGH MEM</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">IdentityPool</span>
+</div>
+</div>
+</td>
+<td class="py-2.5 px-space-md text-on-surface-variant font-body-sm text-body-sm">
+<div class="flex flex-col">
+<span class="text-on-surface font-medium font-label-code-sm text-label-code-sm">.NET 8.0.4 CLR</span>
+<span class="text-[11px] text-tertiary-container">Kestrel In-Process (CoreShim)</span>
+</div>
+</td>
+<td class="py-2.5 px-space-md">
+<div class="flex flex-col gap-1 w-full max-w-[160px]">
+<div class="flex justify-between font-label-code-sm text-label-code-sm">
+<span class="text-error font-semibold">41.8%</span>
+<span class="text-on-surface-variant">Cores #0, #2</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-error shadow-[0_0_8px_#ffb4ab]" style="width: 41.8%;"></div>
+</div>
+</div>
+</td>
+<td class="py-2.5 px-space-md font-semibold text-error">912.4 MB</td>
+<td class="py-2.5 px-space-md text-on-surface-variant">4.12 GB</td>
+<td class="py-2.5 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-highest">
+<span class="text-error font-semibold">28</span>
+<span class="text-on-surface-variant text-[10px]">running</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-error font-medium">11</span>
+<span class="text-on-surface-variant text-[10px]">queued</span>
+</div>
+</td>
+<td class="py-2.5 px-space-md text-right">
+<div class="flex items-center justify-end gap-1.5">
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-primary-container transition-colors" title="Recycle App Pool" type="button">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-on-surface transition-colors" title="Create Crash Dump (.dmp)" type="button">
+<span class="material-symbols-outlined text-[16px]">file_download</span>
+</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest text-secondary transition-colors" onclick="openThreadInspector('PID 9024', 'IdentityPool')" title="Inspect Threads" type="button">
+<span class="material-symbols-outlined text-[16px]">account_tree</span>
+</button>
+<button class="p-1.5 rounded hover:bg-error-container text-error hover:text-on-error-container transition-colors" title="Kill Process" type="button">
+<span class="material-symbols-outlined text-[16px]">cancel</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- BOTTOM HALF: Real-Time Request Stream & Failed Request Tracing (FREB) Console -->
+<div class="flex flex-col flex-1 bg-surface-container-low rounded-xl shadow-2xl overflow-hidden min-h-[460px]">
+<!-- Console Filtering & Status Toolstrip -->
+<div class="flex flex-wrap items-center justify-between gap-space-sm p-space-sm bg-surface-container">
+<div class="flex flex-wrap items-center gap-space-xs">
+<div class="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-high text-primary">
+<span class="material-symbols-outlined text-[16px] animate-spin">cyclone</span>
+<span class="font-label-code-md text-label-code-md font-semibold">Live ETW Trace (Channel 1)</span>
+</div>
+<div class="w-px h-5 bg-surface-variant mx-1"></div>
+<!-- Filter Pill: Status Codes -->
+<div class="flex items-center bg-surface-container-lowest rounded p-0.5 text-on-surface-variant font-label-code-sm text-label-code-sm">
+<button class="px-2 py-0.5 rounded bg-surface-container-high text-primary font-medium" onclick="filterLogs('ALL')" type="button">ALL</button>
+<button class="px-2 py-0.5 rounded hover:text-tertiary-container transition-colors" onclick="filterLogs('200')" type="button">2xx</button>
+<button class="px-2 py-0.5 rounded hover:text-secondary-fixed transition-colors" onclick="filterLogs('404')" type="button">4xx</button>
+<button class="px-2 py-0.5 rounded hover:text-error transition-colors" onclick="filterLogs('500')" type="button">5xx (FREB)</button>
+</div>
+<!-- Filter Latency -->
+<button class="flex items-center gap-1 px-2 py-1 rounded bg-surface-container-lowest hover:bg-surface-container-high text-on-surface-variant font-label-code-sm text-label-code-sm transition-colors" id="latency-toggle" onclick="toggleLatencyFilter()" type="button">
+<span class="material-symbols-outlined text-[14px]">timer</span>
+<span>Latency &gt; 500ms</span>
+</button>
+<!-- Filter Site ID -->
+<div class="relative">
+<select class="bg-surface-container-lowest text-on-surface font-label-code-sm text-label-code-sm rounded px-2 py-1 appearance-none pr-6 focus:outline-none focus:bg-surface-container">
+<option>All Sites (Site 1, 2, 4)</option>
+<option>Site 1: Default Web Site</option>
+<option>Site 2: api.internal.io</option>
+<option>Site 4: auth-service</option>
+</select>
+<span class="material-symbols-outlined absolute right-1.5 top-1/2 -translate-y-1/2 text-[14px] pointer-events-none text-on-surface-variant">arrow_drop_down</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm text-on-surface-variant font-label-code-sm text-label-code-sm">
+<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-tertiary-container shadow-[0_0_6px_#67f4b7]"></span>200 OK</span>
+<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-secondary-fixed"></span>401 Unauthorized</span>
+<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-error shadow-[0_0_6px_#ffb4ab] animate-pulse"></span>502 / 500 Fault</span>
+<button class="p-1 rounded hover:bg-surface-container-high hover:text-on-surface transition-colors" onclick="clearLiveConsole()" title="Clear Console" type="button">
+<span class="material-symbols-outlined text-[16px]">clear_all</span>
+</button>
+</div>
+</div>
+<!-- Main Live Streaming Console Matrix -->
+<div class="relative flex-1 flex overflow-hidden">
+<!-- Live Log Stream Feed -->
+<div class="flex-1 overflow-y-auto bg-surface-container-lowest p-space-sm font-label-code-md text-label-code-md flex flex-col gap-1 select-text" id="live-console-feed">
+<!-- Stream Row 1 -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group" data-latency="18.2" data-status="200" onclick="openInspector('req-1')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant/70">14:02:18.841</span>
+<span class="px-1.5 py-0.2 rounded bg-primary-container/20 text-primary-container font-semibold text-[10px] tracking-wide">GET</span>
+<span class="px-1 py-0.2 rounded bg-surface-container text-tertiary-container font-semibold text-[10px]">200 OK</span>
+<span class="text-tertiary font-medium">18.2 ms</span>
+<span class="text-on-surface font-semibold truncate group-hover:text-primary transition-colors">/api/v2/telemetry/heartbeat</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span>192.168.1.104</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 2</span>
+<span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 text-primary">chevron_right</span>
+</div>
+</div>
+<!-- Stream Row 2 -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group" data-latency="42.6" data-status="200" onclick="openInspector('req-2')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant/70">14:02:18.910</span>
+<span class="px-1.5 py-0.2 rounded bg-tertiary-container/20 text-tertiary-container font-semibold text-[10px] tracking-wide">POST</span>
+<span class="px-1 py-0.2 rounded bg-surface-container text-tertiary-container font-semibold text-[10px]">200 OK</span>
+<span class="text-tertiary font-medium">42.6 ms</span>
+<span class="text-on-surface font-semibold truncate group-hover:text-primary transition-colors">/api/v1/auth/session/token</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span>10.0.4.88</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 4</span>
+<span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 text-primary">chevron_right</span>
+</div>
+</div>
+<!-- Stream Row 3: 401 Unauthorized -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-surface-container-high/20" data-latency="4.1" data-status="404" onclick="openInspector('req-3')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant/70">14:02:19.004</span>
+<span class="px-1.5 py-0.2 rounded bg-primary-container/20 text-primary-container font-semibold text-[10px] tracking-wide">GET</span>
+<span class="px-1 py-0.2 rounded bg-secondary-container/40 text-secondary font-semibold text-[10px]">401 UNAUTH</span>
+<span class="text-on-surface-variant font-medium">4.1 ms</span>
+<span class="text-on-surface font-semibold truncate group-hover:text-primary transition-colors">/admin/metrics/prometheus</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span>172.16.80.12</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 1</span>
+<span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 text-primary">chevron_right</span>
+</div>
+</div>
+<!-- Stream Row 4: FREB 500 Fault (High Alert) -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-error-container/20 cursor-pointer transition-colors group bg-error-container/10" data-latency="688.4" data-status="500" onclick="openInspector('req-4')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-error">14:02:19.122</span>
+<span class="px-1.5 py-0.2 rounded bg-secondary-container text-on-secondary-container font-semibold text-[10px] tracking-wide">PUT</span>
+<span class="px-1 py-0.2 rounded bg-error-container text-error font-bold text-[10px] shadow-[0_0_8px_#ffb4ab] animate-pulse">500 FREB</span>
+<span class="text-error font-bold">688.4 ms</span>
+<span class="text-error font-semibold truncate group-hover:underline">/api/v2/orders/checkout/confirm [NRE IN HANDLER]</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span class="text-error">192.168.10.45</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 2</span>
+<span class="material-symbols-outlined text-[14px] text-error">warning</span>
+</div>
+</div>
+<!-- Stream Row 5 -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group" data-latency="12.0" data-status="200" onclick="openInspector('req-5')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant/70">14:02:19.208</span>
+<span class="px-1.5 py-0.2 rounded bg-primary-container/20 text-primary-container font-semibold text-[10px] tracking-wide">GET</span>
+<span class="px-1 py-0.2 rounded bg-surface-container text-tertiary-container font-semibold text-[10px]">200 OK</span>
+<span class="text-tertiary font-medium">12.0 ms</span>
+<span class="text-on-surface font-semibold truncate group-hover:text-primary transition-colors">/static/assets/app.chunk-504.js</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span>192.168.1.104</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 1</span>
+<span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 text-primary">chevron_right</span>
+</div>
+</div>
+<!-- Stream Row 6: 502 Bad Gateway -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-error-container/20 cursor-pointer transition-colors group bg-error-container/10" data-latency="1240.2" data-status="500" onclick="openInspector('req-6')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-error">14:02:19.340</span>
+<span class="px-1.5 py-0.2 rounded bg-error-container text-error font-semibold text-[10px] tracking-wide">DELETE</span>
+<span class="px-1 py-0.2 rounded bg-error-container text-error font-bold text-[10px] shadow-[0_0_8px_#ffb4ab]">502 BAD GW</span>
+<span class="text-error font-bold">1,240.2 ms</span>
+<span class="text-error font-semibold truncate group-hover:underline">/upstream/proxy/payment-service</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span class="text-error">10.0.1.20</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 2</span>
+<span class="material-symbols-outlined text-[14px] text-error">error</span>
+</div>
+</div>
+<!-- Stream Row 7 -->
+<div class="request-item flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group" data-latency="21.7" data-status="200" onclick="openInspector('req-7')">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant/70">14:02:19.492</span>
+<span class="px-1.5 py-0.2 rounded bg-primary-container/20 text-primary-container font-semibold text-[10px] tracking-wide">GET</span>
+<span class="px-1 py-0.2 rounded bg-surface-container text-tertiary-container font-semibold text-[10px]">200 OK</span>
+<span class="text-tertiary font-medium">21.7 ms</span>
+<span class="text-on-surface font-semibold truncate group-hover:text-primary transition-colors">/api/v2/catalog/items?category=infrastructure</span>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant text-[11px] shrink-0">
+<span>192.168.1.18</span>
+<span class="bg-surface-container px-1 rounded text-on-surface-variant/80">Site 2</span>
+<span class="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 text-primary">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Slide-Over Inspector Drawer -->
+<aside class="hidden w-[420px] bg-surface-container-low border-l border-surface-variant flex-col overflow-y-auto shrink-0 shadow-2xl transition-all" id="inspector-panel">
+<!-- Inspector Header -->
+<div class="flex items-center justify-between p-space-md bg-surface-container sticky top-0 z-10 border-b border-surface-variant">
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-badge-label text-badge-label uppercase text-on-surface-variant">FREB TRACE EVENT</span>
+<span class="px-1 py-0.2 rounded bg-error-container text-error text-[10px] font-bold">500 Internal Error</span>
+</div>
+<span class="font-label-code-md text-label-code-md font-semibold text-primary truncate">REQ-089A-FE41B0</span>
+</div>
+<button class="p-1 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" onclick="closeInspector()" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-lg">
+<!-- Pipeline Execution Stages (Progressive Stepper) -->
+<div class="flex flex-col gap-space-xs">
+<span class="font-badge-label text-badge-label uppercase tracking-wider text-on-surface-variant">IIS Integrated Pipeline Stages</span>
+<div class="flex flex-col gap-1.5 p-space-sm rounded-lg bg-surface-container-lowest font-label-code-sm text-label-code-sm">
+<div class="flex items-center justify-between text-tertiary-container">
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>ResolveRequestCache</span>
+<span>0.4ms</span>
+</div>
+<div class="flex items-center justify-between text-tertiary-container">
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>AuthenticateRequest</span>
+<span>1.1ms</span>
+</div>
+<div class="flex items-center justify-between text-error bg-error-container/20 p-1 rounded font-semibold">
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-error animate-ping"></span>ExecuteRequestHandler</span>
+<span>678.8ms [CRASH]</span>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant/40">
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-surface-variant"></span>SendResponse</span>
+<span>Pending</span>
+</div>
+</div>
+</div>
+<!-- Execution Time Breakdown Widget -->
+<div class="flex flex-col gap-space-xs">
+<span class="font-badge-label text-badge-label uppercase tracking-wider text-on-surface-variant">Latency Breakdown Profile</span>
+<div class="grid grid-cols-3 gap-space-xs">
+<div class="flex flex-col p-space-xs rounded bg-surface-container">
+<span class="text-[10px] text-on-surface-variant">Middleware</span>
+<span class="font-label-code-md text-label-code-md font-semibold text-primary">1.2 ms</span>
+</div>
+<div class="flex flex-col p-space-xs rounded bg-surface-container">
+<span class="text-[10px] text-on-surface-variant">Database I/O</span>
+<span class="font-label-code-md text-label-code-md font-semibold text-tertiary-container">8.1 ms</span>
+</div>
+<div class="flex flex-col p-space-xs rounded bg-surface-container">
+<span class="text-[10px] text-on-surface-variant">Handler / CLR</span>
+<span class="font-label-code-md text-label-code-md font-semibold text-error">679.1 ms</span>
+</div>
+</div>
+</div>
+<!-- Request & Response Headers -->
+<div class="flex flex-col gap-space-xs">
+<span class="font-badge-label text-badge-label uppercase tracking-wider text-on-surface-variant">HTTP Diagnostic Envelope</span>
+<div class="bg-surface-container-lowest rounded-lg p-space-sm font-label-code-sm text-label-code-sm flex flex-col gap-1 text-on-surface-variant select-text">
+<div><span class="text-primary-container">Method:</span> PUT /api/v2/orders/checkout/confirm</div>
+<div><span class="text-primary-container">Host:</span> api.internal.io</div>
+<div><span class="text-primary-container">User-Agent:</span> CommerceClient/3.4.1 (Linux x86_64)</div>
+<div><span class="text-primary-container">X-Correlation-ID:</span> c48d39f2-8091-447b</div>
+<div class="w-full h-px bg-surface-variant my-1"></div>
+<div><span class="text-error">Response:</span> 500 Internal Server Error</div>
+<div><span class="text-error">Server:</span> Microsoft-IIS/10.0</div>
+<div><span class="text-error">X-Powered-By:</span> ASP.NET Core Kestrel</div>
+</div>
+</div>
+<!-- Stack Trace Viewer for 500 Error -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-badge-label text-badge-label uppercase tracking-wider text-error">CLR Stack Exception Trace</span>
+<button class="flex items-center gap-1 font-label-code-sm text-label-code-sm text-primary hover:underline" onclick="copyStackTrace()" type="button">
+<span class="material-symbols-outlined text-[14px]">content_copy</span>
+<span id="copy-btn-text">Copy Trace</span>
+</button>
+</div>
+<div class="p-space-sm rounded-lg bg-surface-container-lowest font-label-code-sm text-label-code-sm text-error/90 overflow-x-auto leading-relaxed select-text shadow-inner" id="stack-trace-code">
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at Commerce.Api.Handlers.OrderConfirmHandler.ExecuteAsync(OrderContext ctx) in /src/Handlers/OrderConfirmHandler.cs:line 142
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.Invoke(HttpContext httpContext)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol.ProcessRequests[TContext](IHttpApplication`1 application)
+            </div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<!-- Thread Inspector Modal (Tauri Native Overlay Pattern) -->
+<div class="fixed inset-0 z-50 bg-background/80 backdrop-blur-md hidden items-center justify-center p-space-lg" id="thread-modal">
+<div class="w-full max-w-3xl bg-surface-container-low rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[870px]">
+<div class="flex items-center justify-between p-space-md bg-surface-container border-b border-surface-variant">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">account_tree</span>
+<div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface" id="modal-title">Thread Pool Diagnostics - PID 4820 (CoreClrPool)</h2>
+<p class="font-label-code-sm text-label-code-sm text-on-surface-variant">24 OS Threads Active • 8 Managed ThreadPool Workers • 0 Deadlocks</p>
+</div>
+</div>
+<button class="p-1 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" onclick="closeThreadInspector()" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<div class="p-space-md overflow-y-auto flex flex-col gap-space-md">
+<div class="grid grid-cols-4 gap-space-sm">
+<div class="p-space-sm rounded bg-surface-container flex flex-col">
+<span class="font-badge-label text-badge-label text-on-surface-variant uppercase">Worker Threads</span>
+<span class="font-label-code-lg text-label-code-lg text-primary-container font-semibold">8 / 1,024</span>
+</div>
+<div class="p-space-sm rounded bg-surface-container flex flex-col">
+<span class="font-badge-label text-badge-label text-on-surface-variant uppercase">I/O Completion</span>
+<span class="font-label-code-lg text-label-code-lg text-tertiary-container font-semibold">4 / 1,000</span>
+</div>
+<div class="p-space-sm rounded bg-surface-container flex flex-col">
+<span class="font-badge-label text-badge-label text-on-surface-variant uppercase">Lock Contention</span>
+<span class="font-label-code-lg text-label-code-lg text-on-surface font-semibold">0.02%</span>
+</div>
+<div class="p-space-sm rounded bg-surface-container flex flex-col">
+<span class="font-badge-label text-badge-label text-on-surface-variant uppercase">Context Switches</span>
+<span class="font-label-code-lg text-label-code-lg text-secondary font-semibold">1,240 /s</span>
+</div>
+</div>
+<!-- Thread Table -->
+<div class="w-full overflow-hidden rounded bg-surface-container-lowest">
+<table class="w-full text-left font-label-code-sm text-label-code-sm">
+<thead class="bg-surface-container-high text-on-surface-variant font-badge-label text-badge-label uppercase">
+<tr>
+<th class="py-1.5 px-3">TID</th>
+<th class="py-1.5 px-3">Thread State</th>
+<th class="py-1.5 px-3">Priority</th>
+<th class="py-1.5 px-3">Wait Reason</th>
+<th class="py-1.5 px-3">User Time (ms)</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-variant/40">
+<tr class="hover:bg-surface-container/50">
+<td class="py-1.5 px-3 font-semibold text-primary">TID 0x18B4</td>
+<td class="py-1.5 px-3 text-tertiary-container"><span class="w-1.5 h-1.5 rounded-full inline-block bg-tertiary-container mr-1.5"></span>Running</td>
+<td class="py-1.5 px-3 text-on-surface">Normal</td>
+<td class="py-1.5 px-3 text-on-surface-variant">-</td>
+<td class="py-1.5 px-3 text-on-surface font-medium">842.1</td>
+</tr>
+<tr class="hover:bg-surface-container/50">
+<td class="py-1.5 px-3 font-semibold text-primary">TID 0x2A1C</td>
+<td class="py-1.5 px-3 text-tertiary-container"><span class="w-1.5 h-1.5 rounded-full inline-block bg-tertiary-container mr-1.5"></span>Running</td>
+<td class="py-1.5 px-3 text-on-surface">Normal</td>
+<td class="py-1.5 px-3 text-on-surface-variant">-</td>
+<td class="py-1.5 px-3 text-on-surface font-medium">419.0</td>
+</tr>
+<tr class="hover:bg-surface-container/50">
+<td class="py-1.5 px-3 font-semibold text-on-surface-variant">TID 0x09F0</td>
+<td class="py-1.5 px-3 text-secondary-fixed"><span class="w-1.5 h-1.5 rounded-full inline-block bg-secondary-fixed mr-1.5"></span>Waiting</td>
+<td class="py-1.5 px-3 text-on-surface">Above Normal</td>
+<td class="py-1.5 px-3 text-on-surface-variant">Executive (Socket Polling)</td>
+<td class="py-1.5 px-3 text-on-surface font-medium">1,940.8</td>
+</tr>
+<tr class="hover:bg-surface-container/50">
+<td class="py-1.5 px-3 font-semibold text-on-surface-variant">TID 0x3E18</td>
+<td class="py-1.5 px-3 text-secondary-fixed"><span class="w-1.5 h-1.5 rounded-full inline-block bg-secondary-fixed mr-1.5"></span>Waiting</td>
+<td class="py-1.5 px-3 text-on-surface">Normal</td>
+<td class="py-1.5 px-3 text-on-surface-variant">EventCompletionQueue</td>
+<td class="py-1.5 px-3 text-on-surface font-medium">120.4</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="p-space-md bg-surface-container flex items-center justify-between border-t border-surface-variant">
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Kernel Symbols: Loaded (mscorrc.dll)</span>
+<button class="px-space-md py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-code-sm text-label-code-sm transition-colors" onclick="closeThreadInspector()" type="button">
+          Close Inspector
+        </button>
+</div>
+</div>
+</div>
+<!-- Interactive Logic Hook -->
+<script>
+    let isStreaming = true;
+    let latencyFilterActive = false;
+
+    // Toggle Stream Live state
+    const streamBtn = document.getElementById('stream-toggle-btn');
+    const streamIndicator = document.getElementById('stream-indicator');
+    const streamText = document.getElementById('stream-text');
+
+    if (streamBtn) {
+      streamBtn.addEventListener('click', () => {
+        isStreaming = !isStreaming;
+        if (isStreaming) {
+          streamIndicator.className = 'w-2 h-2 rounded-full bg-tertiary-container shadow-[0_0_8px_#67f4b7] animate-pulse';
+          streamText.innerText = 'Streaming Live';
+          streamBtn.classList.remove('text-on-surface-variant');
+          streamBtn.classList.add('text-tertiary');
+        } else {
+          streamIndicator.className = 'w-2 h-2 rounded-full bg-error shadow-[0_0_8px_#ffb4ab]';
+          streamText.innerText = 'Stream Paused';
+          streamBtn.classList.remove('text-tertiary');
+          streamBtn.classList.add('text-on-surface-variant');
+        }
+      });
+    }
+
+    // Filter Logs by status code
+    function filterLogs(statusFilter) {
+      const items = document.querySelectorAll('.request-item');
+      items.forEach(el => {
+        const status = el.getAttribute('data-status');
+        if (statusFilter === 'ALL' || status === statusFilter) {
+          el.style.display = 'flex';
+        } else {
+          el.style.display = 'none';
+        }
+      });
+    }
+
+    // Latency filter toggle
+    function toggleLatencyFilter() {
+      latencyFilterActive = !latencyFilterActive;
+      const btn = document.getElementById('latency-toggle');
+      if (latencyFilterActive) {
+        btn.classList.add('bg-primary-container', 'text-on-primary-container');
+        btn.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+      } else {
+        btn.classList.remove('bg-primary-container', 'text-on-primary-container');
+        btn.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+      }
+
+      const items = document.querySelectorAll('.request-item');
+      items.forEach(el => {
+        const lat = parseFloat(el.getAttribute('data-latency') || '0');
+        if (latencyFilterActive && lat <= 500) {
+          el.style.display = 'none';
+        } else {
+          el.style.display = 'flex';
+        }
+      });
+    }
+
+    // Inspector Slide-over Trigger
+    function openInspector(reqId) {
+      const panel = document.getElementById('inspector-panel');
+      if (panel) {
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
+      }
+    }
+
+    function closeInspector() {
+      const panel = document.getElementById('inspector-panel');
+      if (panel) {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+      }
+    }
+
+    // Thread Inspector Modal Trigger
+    function openThreadInspector(pid, poolName) {
+      const modal = document.getElementById('thread-modal');
+      const title = document.getElementById('modal-title');
+      if (title) title.innerText = `Thread Pool Diagnostics - ${pid} (${poolName})`;
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+    }
+
+    function closeThreadInspector() {
+      const modal = document.getElementById('thread-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    // Dump Memory Prompt Simulator
+    function triggerProcessDumpModal() {
+      alert('Tauri Kernel Invocation: Creating full user-mode process crash dump file (C:\\dumps\\w3wp_pid4820_manual.dmp)...');
+    }
+
+    // Clear live console
+    function clearLiveConsole() {
+      const feed = document.getElementById('live-console-feed');
+      if (feed) {
+        feed.innerHTML = '<div class="text-on-surface-variant/50 p-2 font-label-code-sm text-label-code-sm">Console cleared. Waiting for new ETW incoming packets...</div>';
+      }
+    }
+
+    // Copy Stack Trace
+    function copyStackTrace() {
+      const trace = document.getElementById('stack-trace-code')?.innerText || '';
+      navigator.clipboard.writeText(trace).then(() => {
+        const btnText = document.getElementById('copy-btn-text');
+        if (btnText) {
+          btnText.innerText = 'Copied!';
+          setTimeout(() => { btnText.innerText = 'Copy Trace'; }, 2000);
+        }
+      });
+    }
+  </script>
+</div></main></div><footer class="fixed bottom-0 left-0 right-0 h-8 bg-surface-container-lowest/95 backdrop-blur-xl z-50 flex items-center justify-between px-space-md text-on-surface-variant font-label-code-sm text-label-code-sm"><div class="flex items-center gap-space-md"><span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>Socket: W3SVC Connected</span><span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px] text-primary">lock</span>SSL Certs: 8 Valid</span><span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px] text-secondary">bolt</span>HTTP/3 QUIC: Enabled</span></div><div class="flex items-center gap-space-md"><span class="text-on-surface-variant">Ports: 80, 443 [LISTENING]</span><button class="flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container hover:bg-surface-container-high text-primary hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">restart_alt</span>Restart W3SVC</button></div></footer></body></html>
