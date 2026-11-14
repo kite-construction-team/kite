@@ -8,5 +8,6 @@
     <Deterministic>true</Deterministic>
     <NuGetAudit>false</NuGetAudit>
     <NoWarn>$(NoWarn);CS1591;NU1900</NoWarn>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 </Project>

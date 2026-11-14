@@ -685,3 +685,9 @@ dotnet build Kite.slnx
 dotnet test Kite.slnx
 ```
 Kite's test suite verifies zero-allocation core data structures (`Kite.UnitTests`), normative HTTP/TLS RFC compliance mapped in [`specs/rfc-requirements.json`](./specs/rfc-requirements.json) (`Kite.SpecTests`), and polyglot workers, ACME, L4 SNI passthrough, OTLP export, CLI workflows, and real WebView2 Chromium Desktop E2E responsiveness (`Kite.IntegrationTests`).
+
+---
+
+## License
+
+Licensed under the [MIT License](./LICENSE).
