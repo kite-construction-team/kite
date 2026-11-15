@@ -5,4 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Kite.Core\Kite.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kite.UnitTests" />
+  </ItemGroup>
 </Project>

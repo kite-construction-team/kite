@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Kite.Core.Models;
@@ -150,7 +151,102 @@ public sealed class KiteInstanceRegistry
             return Path.GetFullPath(envDir);
         }
 
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return ResolveDefaultRegistryDirectory(
+            OSPlatformDetector.Current(),
+            KiteProcessContext.IsPrivilegedServiceContext(),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR"),
+            Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+            Directory.Exists);
+    }
+
+    internal static string ResolveDefaultRegistryDirectory(
+        OSPlatform platform,
+        bool isPrivilegedService,
+        string? localAppData,
+        string? appData,
+        string? commonAppData,
+        string? userProfile,
+        string? xdgRuntimeDir,
+        string? xdgDataHome,
+        Func<string, bool> directoryExists)
+    {
+        if (platform == OSPlatform.Windows)
+        {
+            if (isPrivilegedService && !string.IsNullOrWhiteSpace(commonAppData))
+            {
+                return Path.Combine(commonAppData, "Kite", "instances");
+            }
+
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                return Path.Combine(localAppData, "Kite", "instances");
+            }
+
+            return Path.Combine(Path.GetTempPath(), "kite-instances");
+        }
+
+        if (platform == OSPlatform.OSX)
+        {
+            if (isPrivilegedService)
+            {
+                return "/var/run/kite/instances";
+            }
+
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                string legacyMac = Path.Combine(localAppData, "Kite", "instances");
+                if (directoryExists(legacyMac))
+                {
+                    return legacyMac;
+                }
+            }
+
+            string? macSupport = !string.IsNullOrWhiteSpace(appData)
+                ? appData
+                : !string.IsNullOrWhiteSpace(userProfile)
+                    ? Path.Combine(userProfile, "Library", "Application Support")
+                    : null;
+            if (!string.IsNullOrWhiteSpace(macSupport))
+            {
+                return Path.Combine(macSupport, "Kite", "instances");
+            }
+        }
+
+        if (platform == OSPlatform.Linux)
+        {
+            if (isPrivilegedService)
+            {
+                return "/run/kite/instances";
+            }
+
+            if (!string.IsNullOrWhiteSpace(xdgRuntimeDir))
+            {
+                return Path.Combine(xdgRuntimeDir, "kite", "instances");
+            }
+
+            string? dataRoot = !string.IsNullOrWhiteSpace(xdgDataHome)
+                ? xdgDataHome
+                : !string.IsNullOrWhiteSpace(localAppData)
+                    ? localAppData
+                    : !string.IsNullOrWhiteSpace(userProfile)
+                        ? Path.Combine(userProfile, ".local", "share")
+                        : null;
+            if (!string.IsNullOrWhiteSpace(dataRoot))
+            {
+                string legacyLinux = Path.Combine(dataRoot, "Kite", "instances");
+                if (directoryExists(legacyLinux))
+                {
+                    return legacyLinux;
+                }
+
+                return Path.Combine(dataRoot, "kite", "instances");
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(localAppData))
         {
             return Path.Combine(localAppData, "Kite", "instances");

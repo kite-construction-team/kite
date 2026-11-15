@@ -1,0 +1,30 @@
+# Created following the Winget 1.9.0 manifest schema
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.9.0.schema.json
+
+PackageIdentifier: KiteConstructionTeam.Kite
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Kite Construction Team
+PublisherUrl: https://github.com/kite-construction-team/kite
+PublisherSupportUrl: https://github.com/kite-construction-team/kite/issues
+PackageName: Kite Edge Server
+PackageUrl: https://github.com/kite-construction-team/kite
+License: MIT
+LicenseUrl: https://github.com/kite-construction-team/kite/blob/main/LICENSE
+ShortDescription: High-throughput .NET 10 edge web server, reverse proxy, TLS/ACME gateway, and polyglot application host.
+Description: |-
+  Kite is a .NET 10 HTTP/1.1, HTTP/2, HTTP/3 (QUIC), TLS/ACME, L4 SNI proxy, API gateway, and polyglot process manager.
+  Installs the `kite` CLI and `kite-server` (`Kite.Server`) background host with automatic KITE_HOME path resolution and self-forming local edge mesh.
+Moniker: kite
+Tags:
+  - web-server
+  - reverse-proxy
+  - api-gateway
+  - tls
+  - acme
+  - cli
+  - dotnet
+  - kestrel
+ReleaseNotesUrl: https://github.com/kite-construction-team/kite/releases/tag/v1.0.0
+ManifestType: defaultLocale
+ManifestVersion: 1.9.0

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>kite</id>
+    <version>1.0.0</version>
+    <title>Kite Edge Server</title>
+    <authors>Kite Construction Team</authors>
+    <owners>Kite Construction Team</owners>
+    <projectUrl>https://github.com/kite-construction-team/kite</projectUrl>
+    <projectSourceUrl>https://github.com/kite-construction-team/kite</projectSourceUrl>
+    <packageSourceUrl>https://github.com/kite-construction-team/kite/tree/main/packaging/chocolatey</packageSourceUrl>
+    <docsUrl>https://github.com/kite-construction-team/kite/blob/main/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/kite-construction-team/kite/issues</bugTrackerUrl>
+    <licenseUrl>https://github.com/kite-construction-team/kite/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <tags>kite web-server reverse-proxy api-gateway tls acme kestrel dotnet cli</tags>
+    <summary>High-throughput .NET 10 edge web server, reverse proxy, TLS/ACME gateway, and polyglot application host.</summary>
+    <description>
+Kite is a .NET 10 HTTP/1.1, HTTP/2, HTTP/3 (QUIC), TLS/ACME, L4 SNI proxy, API gateway, and polyglot process manager.
+
+This package installs the self-contained `kite` CLI and `kite-server` (`Kite.Server`) background host, adds them to PATH, and configures cross-platform `KITE_HOME` discovery automatically.
+
+Quick start:
+  kite paths
+  kite init
+  kite run
+    </description>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

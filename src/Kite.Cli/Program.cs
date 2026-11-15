@@ -1,12 +1,35 @@
 using Kite.Cli;
 
 using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, e) =>
+int disposed = 0;
+
+void OnCancelKeyPress(object? _, ConsoleCancelEventArgs e)
 {
     e.Cancel = true;
-    cts.Cancel();
-};
-AppDomain.CurrentDomain.ProcessExit += (_, _) => cts.Cancel();
+    if (Volatile.Read(ref disposed) == 0)
+    {
+        try { cts.Cancel(); } catch (ObjectDisposedException) { }
+    }
+}
 
-int exitCode = await KiteCliRunner.ExecuteAsync(args, Console.Out, Console.Error, cts.Token).ConfigureAwait(false);
-return exitCode;
+void OnProcessExit(object? _, EventArgs __)
+{
+    if (Volatile.Read(ref disposed) == 0)
+    {
+        try { cts.Cancel(); } catch (ObjectDisposedException) { }
+    }
+}
+
+Console.CancelKeyPress += OnCancelKeyPress;
+AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+
+try
+{
+    return await KiteCliRunner.ExecuteAsync(args, Console.Out, Console.Error, cts.Token).ConfigureAwait(false);
+}
+finally
+{
+    Interlocked.Exchange(ref disposed, 1);
+    Console.CancelKeyPress -= OnCancelKeyPress;
+    AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
+}

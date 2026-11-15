@@ -1,0 +1,163 @@
+name: Release Cross-Platform Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RAW="${{ inputs.version }}"
+          else
+            RAW="${GITHUB_REF_NAME}"
+          fi
+          CLEAN="${RAW#v}"
+          echo "version=${CLEAN}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${CLEAN}" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test tests/Kite.UnitTests/Kite.UnitTests.csproj -c Release
+      - run: dotnet test tests/Kite.SpecTests/Kite.SpecTests.csproj -c Release
+
+  publish:
+    needs: [resolve-version, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            portable: true
+            smoke: true
+          - rid: win-arm64
+            os: windows-latest
+            portable: true
+            smoke: false
+          - rid: osx-arm64
+            os: macos-latest
+            portable: false
+            smoke: true
+          - rid: osx-x64
+            os: macos-latest
+            portable: false
+            smoke: false
+          - rid: linux-x64
+            os: ubuntu-latest
+            portable: false
+            smoke: true
+          - rid: linux-arm64
+            os: ubuntu-latest
+            portable: false
+            smoke: false
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish ${{ matrix.rid }}
+        shell: pwsh
+        run: |
+          $extra = if ("${{ matrix.portable }}" -eq "true") { @("-IncludePortableSingleFile") } else { @() }
+          ./scripts/publish-release.ps1 -Version "${{ needs.resolve-version.outputs.version }}" -Rid "${{ matrix.rid }}" -OutputDir "dist" @extra
+
+      - name: Smoke test ${{ matrix.rid }} (Windows)
+        if: matrix.smoke && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP "kite-smoke-${{ matrix.rid }}"
+          Expand-Archive "dist/kite-v${{ needs.resolve-version.outputs.version }}-${{ matrix.rid }}.zip" -DestinationPath $tmp -Force
+          & "$tmp/kite.exe" --version
+          & "$tmp/Kite.Server.exe" --version
+          & "$tmp/kite.exe" paths
+          $homeDir = Join-Path $env:RUNNER_TEMP "kite-home-${{ matrix.rid }}"
+          & "$tmp/kite.exe" init --home $homeDir
+          & "$tmp/kite.exe" validate --home $homeDir
+
+      - name: Smoke test ${{ matrix.rid }} (Unix)
+        if: matrix.smoke && runner.os != 'Windows'
+        shell: bash
+        run: |
+          TMP_DIR="$RUNNER_TEMP/kite-smoke-${{ matrix.rid }}"
+          mkdir -p "$TMP_DIR"
+          tar -xzf "dist/kite-v${{ needs.resolve-version.outputs.version }}-${{ matrix.rid }}.tar.gz" -C "$TMP_DIR"
+          "$TMP_DIR/kite" --version
+          "$TMP_DIR/kite-server" --version
+          "$TMP_DIR/kite" paths
+          HOME_DIR="$RUNNER_TEMP/kite-home-${{ matrix.rid }}"
+          "$TMP_DIR/kite" init --home "$HOME_DIR"
+          "$TMP_DIR/kite" validate --home "$HOME_DIR"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.rid }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+
+  release:
+    needs: [resolve-version, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: Generate SHA256SUMS.txt and update manifests
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem -Path dist -File |
+            Where-Object { $_.Extension -in ".zip", ".gz" } |
+            Sort-Object Name |
+            ForEach-Object {
+              $h = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$h  $($_.Name)"
+            }
+          $sumsContent = if ($lines.Count -gt 0) { ($lines -join "`n") + "`n" } else { "" }
+          [System.IO.File]::WriteAllText("dist/SHA256SUMS.txt", $sumsContent, [System.Text.UTF8Encoding]::new($false))
+          ./scripts/update-packaging-manifests.ps1 -Version "${{ needs.resolve-version.outputs.version }}" -DistDir "dist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updated-packaging-manifests
+          path: packaging/
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/SHA256SUMS.txt

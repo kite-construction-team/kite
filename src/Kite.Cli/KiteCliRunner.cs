@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using Kite.Core.Models;
 using Kite.Core.Routing;
@@ -28,6 +30,11 @@ public static class KiteCliRunner
         }
 
         string command = args[0].Trim().ToLowerInvariant();
+        if (command is "--version" or "-v" or "version")
+        {
+            return await PrintVersionAsync(output).ConfigureAwait(false);
+        }
+
         string? homeArg = ReadOption(args, "--home");
         KiteHomeLayout layout = homeArg is not null
             ? new KiteHomeLayout(Path.GetFullPath(homeArg))
@@ -37,6 +44,19 @@ public static class KiteCliRunner
         {
             case "run":
                 return await RunServerAsync(args, layout, output, ct).ConfigureAwait(false);
+
+            case "start":
+                return await StartDaemonAsync(layout, output, error, ct).ConfigureAwait(false);
+
+            case "stop":
+                return await StopDaemonAsync(layout, output, ct).ConfigureAwait(false);
+
+            case "status":
+                return await StatusAsync(layout, output, ct).ConfigureAwait(false);
+
+            case "paths":
+            case "info":
+                return await PrintPathsAsync(layout, output).ConfigureAwait(false);
 
             case "validate":
                 return await ValidateConfigAsync(layout, output, error, ct).ConfigureAwait(false);
@@ -391,12 +411,16 @@ public static class KiteCliRunner
 
     private static void PrintUsage(TextWriter output)
     {
-        output.WriteLine("Kite Edge Server CLI (.NET 10)");
+        output.WriteLine($"Kite Edge Server CLI ({GetVersionString()}, .NET 10)");
         output.WriteLine("Usage: kite <command> [options]");
         output.WriteLine("Commands:");
         output.WriteLine("  init [--home <path>] [--host <name.localhost>]");
-        output.WriteLine("  ps   | instances");
+        output.WriteLine("  paths | info [--home <path>]");
+        output.WriteLine("  ps    | instances");
         output.WriteLine("  run [--home <path>] [--mesh <auto|leader|peer|off>] [--admin-port <port>] [--admin-token <token>]");
+        output.WriteLine("  start [--home <path>]");
+        output.WriteLine("  stop [--home <path>]");
+        output.WriteLine("  status [--home <path>]");
         output.WriteLine("  validate [--home <path>]");
         output.WriteLine("  reload [--home <path>]");
         output.WriteLine("  route-test <url> [--home <path>]");
@@ -407,6 +431,108 @@ public static class KiteCliRunner
         output.WriteLine("  rollback <snapshotId> [--home <path>]");
         output.WriteLine("  deploy --site <id> [--path <dir>] [--swap] [--home <path>]");
         output.WriteLine("  import --format <nginx|caddy|iis> --file <path> [--apply] [--home <path>]");
+        output.WriteLine("  version | --version");
+    }
+
+    internal static string GetVersionString()
+    {
+        Assembly asm = typeof(KiteCliRunner).Assembly;
+        string? info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(info))
+        {
+            int plusIdx = info.IndexOf('+');
+            return plusIdx > 0 ? info[..plusIdx] : info;
+        }
+
+        return asm.GetName().Version?.ToString(3) ?? "1.0.0";
+    }
+
+    private static async Task<int> PrintVersionAsync(TextWriter output)
+    {
+        await output.WriteLineAsync($"kite {GetVersionString()} ({RuntimeInformation.RuntimeIdentifier})").ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> PrintPathsAsync(KiteHomeLayout layout, TextWriter output)
+    {
+        KiteManagementService.KiteServerLaunchTarget? serverTarget = KiteManagementService.LocateKiteServerLaunchTarget();
+        string registryDir = KiteInstanceRegistry.ResolveRegistryDirectory();
+        string? processPath = Environment.ProcessPath;
+
+        await output.WriteLineAsync($"Kite Version       : {GetVersionString()} ({RuntimeInformation.RuntimeIdentifier})").ConfigureAwait(false);
+        await output.WriteLineAsync($"OS / Arch          : {RuntimeInformation.OSDescription.Trim()} ({RuntimeInformation.ProcessArchitecture})").ConfigureAwait(false);
+        await output.WriteLineAsync($"CLI Binary         : {processPath ?? AppContext.BaseDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"Server Target      : {(serverTarget is null ? "<not found>" : $"{serverTarget.ResolvedBinaryPath} ({(serverTarget.IsNativeExecutable ? "native" : "dotnet")})")}").ConfigureAwait(false);
+        await output.WriteLineAsync($"KITE_HOME          : {layout.RootDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"  Config Dir       : {layout.ConfigDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"  Certs Dir        : {layout.CertsConfigDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"  Plugins Dir      : {layout.PluginsDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"  State Dir        : {layout.StateDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"  Logs Dir         : {layout.LogsDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"KITE_REGISTRY_DIR  : {registryDir}").ConfigureAwait(false);
+        if (OperatingSystem.IsLinux())
+        {
+            await output.WriteLineAsync("Linux Privileged Ports Note: grant cap_net_bind_service=+ep on Kite.Server/kite (or run via systemd) to bind :80/:443 without fallback to :8080/:8443.").ConfigureAwait(false);
+        }
+
+        return 0;
+    }
+
+    private static async Task<int> StartDaemonAsync(KiteHomeLayout layout, TextWriter output, TextWriter error, CancellationToken ct)
+    {
+        layout.EnsureDirectoriesCreated();
+        var svc = new KiteManagementService(layout);
+        await svc.EnsureDefaultWorkspaceSeededAsync(ct).ConfigureAwait(false);
+        bool started = await svc.EnsureServerDaemonRunningAsync(ct).ConfigureAwait(false);
+        if (!started)
+        {
+            await error.WriteLineAsync($"Failed to start Kite.Server background daemon for KITE_HOME '{layout.RootDirectory}'.").ConfigureAwait(false);
+            return 1;
+        }
+
+        ManagementWorkspaceSnapshot snap = await svc.GetWorkspaceSnapshotAsync(ct).ConfigureAwait(false);
+        int pid = snap.ServerStatus?.ServerPid ?? 0;
+        string bindings = snap.ServerStatus is { ActiveBindings.Count: > 0 }
+            ? string.Join(", ", snap.ServerStatus.ActiveBindings)
+            : "(initializing)";
+        await output.WriteLineAsync($"Kite.Server running in background (PID={pid}, KITE_HOME={layout.RootDirectory}, bindings=[{bindings}]).").ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> StopDaemonAsync(KiteHomeLayout layout, TextWriter output, CancellationToken ct)
+    {
+        var svc = new KiteManagementService(layout);
+        ManagementWorkspaceSnapshot snap = await svc.GetWorkspaceSnapshotAsync(ct).ConfigureAwait(false);
+        if (!snap.IsServerOnline)
+        {
+            await output.WriteLineAsync($"Kite.Server is not running for KITE_HOME '{layout.RootDirectory}'.").ConfigureAwait(false);
+            return 0;
+        }
+
+        int oldPid = snap.ServerStatus?.ServerPid ?? 0;
+        await svc.StopServerDaemonAsync(ct).ConfigureAwait(false);
+        await output.WriteLineAsync($"Stopped Kite.Server (PID={oldPid}) for KITE_HOME '{layout.RootDirectory}'.").ConfigureAwait(false);
+        return 0;
+    }
+
+    private static async Task<int> StatusAsync(KiteHomeLayout layout, TextWriter output, CancellationToken ct)
+    {
+        var svc = new KiteManagementService(layout);
+        ManagementWorkspaceSnapshot snap = await svc.GetWorkspaceSnapshotAsync(ct).ConfigureAwait(false);
+        if (!snap.IsServerOnline || snap.ServerStatus is null)
+        {
+            await output.WriteLineAsync($"Status    : Stopped").ConfigureAwait(false);
+            await output.WriteLineAsync($"KITE_HOME : {layout.RootDirectory}").ConfigureAwait(false);
+            return 0;
+        }
+
+        ServerStatus s = snap.ServerStatus;
+        await output.WriteLineAsync($"Status    : Running (PID={s.ServerPid}, role={s.MeshRole}, id={s.InstanceId})").ConfigureAwait(false);
+        await output.WriteLineAsync($"KITE_HOME : {layout.RootDirectory}").ConfigureAwait(false);
+        await output.WriteLineAsync($"Started   : {s.StartedAtUtc:O}").ConfigureAwait(false);
+        await output.WriteLineAsync($"Bindings  : {(s.ActiveBindings.Count > 0 ? string.Join(", ", s.ActiveBindings) : "-")}").ConfigureAwait(false);
+        await output.WriteLineAsync($"Sites     : {snap.Sites.Count} configured | Pools: {snap.Pools.Count} | Total Requests: {s.TotalRequestsProcessed}").ConfigureAwait(false);
+        return 0;
     }
 
     private static async Task<int> InitWorkspaceAsync(string[] args, TextWriter output, CancellationToken ct)

@@ -8,6 +8,7 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
 
 ## Table of Contents
 
+0. [Installation (Windows, macOS, Linux)](#0-installation-windows-macos-linux)
 1. [The 5 Things You Will Need Everywhere (Read Once, Remember Always)](#1-the-5-things-you-will-need-everywhere)
 2. [Level 1 — Polyglot Quick Start (Static, .NET, Node.js, Python)](#2-level-1--polyglot-quick-start)
 3. [Level 2 — Serving Static Files, Caching, Compression & SPAs](#3-level-2--serving-static-files)
@@ -20,6 +21,49 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
 
 ---
 
+## 0. Installation (Windows, macOS, Linux)
+
+Self-contained release bundles include both the **`kite` CLI** and **`kite-server` (`Kite.Server`)** with no `.NET 10` runtime prerequisite.
+
+### Windows
+- **Winget** ([manifest](./packaging/winget/manifests/k/KiteConstructionTeam/Kite/1.0.0)):
+  ```powershell
+  winget install KiteConstructionTeam.Kite
+  ```
+- **Chocolatey** ([package](./packaging/chocolatey/kite.nuspec)):
+  ```powershell
+  choco install kite
+  ```
+
+### macOS
+- **Homebrew** ([formula](./packaging/homebrew/Formula/kite.rb)):
+  ```bash
+  brew install kite-construction-team/tap/kite
+  ```
+  Run Kite as a background macOS `launchd` service (`KITE_HOME=$(brew --prefix)/var/kite`):
+  ```bash
+  brew services start kite
+  ```
+
+### Linux
+- **Bash install script** ([`scripts/install.sh`](./scripts/install.sh)):
+  ```bash
+  # User-local install (~/.local/share/kite/app + ~/.local/bin)
+  curl -fsSL https://raw.githubusercontent.com/kite-construction-team/kite/main/scripts/install.sh | bash
+
+  # System-wide install (/opt/kite + /usr/local/bin + systemd service + :80/:443 capability)
+  curl -fsSL https://raw.githubusercontent.com/kite-construction-team/kite/main/scripts/install.sh | sudo bash -s -- --with-systemd --grant-low-ports
+  ```
+
+### Post-Install Verification
+```bash
+kite --version
+kite paths
+kite init && kite run
+```
+
+---
+
 ## 1. The 5 Things You Will Need Everywhere
 
 1. **Where your config lives (`KITE_HOME`)**:
@@ -28,7 +72,10 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
    2. `KITE_HOME` environment variable
    3. Nearest `.kite/` directory walking upward from the current working directory (initialize one with `kite init`)
    4. `<repo-root>/kite-data` (automatically used when running inside a directory tree containing `Kite.slnx`)
-   5. `%LOCALAPPDATA%/Kite/kite-data` (on Windows) or `./kite-data`
+   5. OS & privilege-aware default:
+      - **Windows**: `%LOCALAPPDATA%\Kite\kite-data` (or `%ProgramData%\Kite\kite-data` when running as a Windows Service)
+      - **macOS**: `~/Library/Application Support/Kite/kite-data` (or `/var/lib/kite` when running as root; Homebrew service uses `$(brew --prefix)/var/kite`)
+      - **Linux**: `$XDG_DATA_HOME/kite/kite-data` (`~/.local/share/kite/kite-data`) for users, or `/var/lib/kite` when running as root / `systemd`
 
    Inside `KITE_HOME`, every resource has a fixed location:
    ```text
@@ -689,9 +736,14 @@ Kite lets you run multiple isolated server instances on the same dev machine wit
 ### Full `kite` CLI Command Reference
 | Command | Purpose |
 | :--- | :--- |
+| `kite --version` / `version` | Print installed `kite` CLI version and target RID |
+| `kite paths` / `info [--home <path>]` | Inspect resolved `KITE_HOME`, `KITE_REGISTRY_DIR`, binary paths & port binding hints |
 | `kite init [--home <path>] [--host <name.localhost>]` | Scaffold a repo-local `.kite/` workspace locked to `configVersion: "1.0"` |
 | `kite ps` / `kite instances` | List live Kite instances on the machine (`MeshLeader`, `MeshPeer`, `Standalone`) |
-| `kite run [--home <path>] [--mesh <auto\|leader\|peer\|off>] [--admin-port <port>] [--admin-token <token>]` | Run `Kite.Server` (optionally overriding mesh mode or enabling `HeadlessAdminHost`) |
+| `kite run [--home <path>] [--mesh <auto\|leader\|peer\|off>] [--admin-port <port>] [--admin-token <token>]` | Run `Kite.Server` in the foreground (optionally overriding mesh mode or enabling `HeadlessAdminHost`) |
+| `kite start [--home <path>]` | Start `Kite.Server` as a background daemon for the resolved `KITE_HOME` |
+| `kite stop [--home <path>]` | Stop the background `Kite.Server` daemon for the resolved `KITE_HOME` |
+| `kite status [--home <path>]` | Show daemon status, PID, active bindings, and request counters |
 | `kite validate [--home <path>]` | Validate `server.json`, `pools/*.json`, and `sites/*.json` schemas & references |
 | `kite reload [--home <path>]` | Force config check & print snapshot summary |
 | `kite route-test <url> [--home <path>]` | Simulate host/SNI, virtual path, gateway route rule & rewrite matching without HTTP traffic |

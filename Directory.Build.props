@@ -9,5 +9,8 @@
     <NuGetAudit>false</NuGetAudit>
     <NoWarn>$(NoWarn);CS1591;NU1900</NoWarn>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <Product>Kite Edge Server</Product>
+    <Authors>Kite Construction Team</Authors>
   </PropertyGroup>
 </Project>

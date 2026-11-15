@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 using Kite.Core.Models;
 using Kite.Core.Serialization;
 
@@ -100,7 +102,7 @@ public sealed class KiteHomeLayout
     /// <summary>
     /// Resolves a shared <c>KITE_HOME</c> path across <c>Kite.Server</c>, <c>Kite.Cli</c>, and <c>Kite.Desktop.WinForms</c>.
     /// Precedence: <c>--home</c> argument &gt; <c>KITE_HOME</c> env var &gt; nearest <c>.kite/</c> directory walking up
-    /// from the working directory &gt; repo-local <c>kite-data</c> (next to <c>Kite.slnx</c>) &gt; <c>%LOCALAPPDATA%/Kite/kite-data</c>.
+    /// from the working directory &gt; repo-local <c>kite-data</c> (next to <c>Kite.slnx</c>) &gt; OS-specific user/service default.
     /// </summary>
     public static KiteHomeLayout ResolveFromArgsAndEnv(string[] args, string? workingDirectory = null)
     {
@@ -144,14 +146,157 @@ public sealed class KiteHomeLayout
             current = Path.GetDirectoryName(current);
         }
 
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (!string.IsNullOrWhiteSpace(localAppData))
+        return new KiteHomeLayout(ResolveDefaultDataDirectory());
+    }
+
+    /// <summary>
+    /// Resolves the default OS-appropriate <c>KITE_HOME</c> directory outside of git repositories.
+    /// </summary>
+    public static string ResolveDefaultDataDirectory() =>
+        ResolveDefaultDataDirectory(
+            OSPlatformDetector.Current(),
+            KiteProcessContext.IsPrivilegedServiceContext(),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+            Directory.Exists);
+
+    internal static string ResolveDefaultDataDirectory(
+        OSPlatform platform,
+        bool isPrivilegedService,
+        string? localAppData,
+        string? appData,
+        string? commonAppData,
+        string? userProfile,
+        string? xdgDataHome,
+        Func<string, bool> directoryExists)
+    {
+        if (platform == OSPlatform.Windows)
         {
-            return new KiteHomeLayout(Path.Combine(localAppData, "Kite", "kite-data"));
+            if (isPrivilegedService && !string.IsNullOrWhiteSpace(commonAppData))
+            {
+                return Path.Combine(commonAppData, "Kite", "kite-data");
+            }
+
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                return Path.Combine(localAppData, "Kite", "kite-data");
+            }
+
+            return Path.Combine(Environment.CurrentDirectory, "kite-data");
         }
 
-        return new KiteHomeLayout(Path.Combine(Environment.CurrentDirectory, "kite-data"));
+        if (platform == OSPlatform.OSX)
+        {
+            if (isPrivilegedService)
+            {
+                return "/var/lib/kite";
+            }
+
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                string legacyMac = Path.Combine(localAppData, "Kite", "kite-data");
+                if (directoryExists(legacyMac))
+                {
+                    return legacyMac;
+                }
+            }
+
+            string? macSupport = !string.IsNullOrWhiteSpace(appData)
+                ? appData
+                : !string.IsNullOrWhiteSpace(userProfile)
+                    ? Path.Combine(userProfile, "Library", "Application Support")
+                    : null;
+            if (!string.IsNullOrWhiteSpace(macSupport))
+            {
+                return Path.Combine(macSupport, "Kite", "kite-data");
+            }
+        }
+
+        if (platform == OSPlatform.Linux)
+        {
+            if (isPrivilegedService)
+            {
+                return "/var/lib/kite";
+            }
+
+            string? dataRoot = !string.IsNullOrWhiteSpace(xdgDataHome)
+                ? xdgDataHome
+                : !string.IsNullOrWhiteSpace(localAppData)
+                    ? localAppData
+                    : !string.IsNullOrWhiteSpace(userProfile)
+                        ? Path.Combine(userProfile, ".local", "share")
+                        : null;
+            if (!string.IsNullOrWhiteSpace(dataRoot))
+            {
+                string legacyLinux = Path.Combine(dataRoot, "Kite", "kite-data");
+                if (directoryExists(legacyLinux))
+                {
+                    return legacyLinux;
+                }
+
+                return Path.Combine(dataRoot, "kite", "kite-data");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            return Path.Combine(localAppData, "Kite", "kite-data");
+        }
+
+        return Path.Combine(Environment.CurrentDirectory, "kite-data");
     }
+}
+
+internal static class OSPlatformDetector
+{
+    public static OSPlatform Current()
+    {
+        if (OperatingSystem.IsWindows()) return OSPlatform.Windows;
+        if (OperatingSystem.IsMacOS()) return OSPlatform.OSX;
+        if (OperatingSystem.IsLinux()) return OSPlatform.Linux;
+        return OSPlatform.FreeBSD;
+    }
+}
+
+internal static class KiteProcessContext
+{
+    public static bool IsPrivilegedServiceContext()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                using WindowsIdentity id = WindowsIdentity.GetCurrent();
+                if (id.User is not null &&
+                    (id.User.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                     id.User.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                     id.User.IsWellKnown(WellKnownSidType.NetworkServiceSid)))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        try
+        {
+            return GetEffectiveUserId() == 0;
+        }
+        catch
+        {
+            return string.Equals(Environment.UserName, "root", StringComparison.Ordinal);
+        }
+    }
+
+    [DllImport("libc", EntryPoint = "geteuid")]
+    private static extern uint GetEffectiveUserId();
 }
 
 public sealed class FileSystemConfigMonitor : IAsyncDisposable

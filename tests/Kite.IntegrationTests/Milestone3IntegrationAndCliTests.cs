@@ -330,6 +330,39 @@ public sealed class Milestone3IntegrationAndCliTests
         }
     }
 
+    [Fact]
+    public async Task Cli_VersionPathsAndStatus_ReturnExpectedDiagnostics()
+    {
+        string tempHome = Path.Combine(Path.GetTempPath(), $"kite-cli-paths-{Guid.NewGuid():N}");
+        try
+        {
+            using var versionOut = new StringWriter();
+            using var versionErr = new StringWriter();
+            int versionExit = await KiteCliRunner.ExecuteAsync(["--version"], versionOut, versionErr);
+            Assert.Equal(0, versionExit);
+            Assert.Contains("kite ", versionOut.ToString());
+
+            using var pathsOut = new StringWriter();
+            using var pathsErr = new StringWriter();
+            int pathsExit = await KiteCliRunner.ExecuteAsync(["paths", "--home", tempHome], pathsOut, pathsErr);
+            Assert.Equal(0, pathsExit);
+            string pathsText = pathsOut.ToString();
+            Assert.Contains(Path.GetFullPath(tempHome), pathsText);
+            Assert.Contains("Server Target", pathsText);
+            Assert.Contains("KITE_REGISTRY_DIR", pathsText);
+
+            using var statusOut = new StringWriter();
+            using var statusErr = new StringWriter();
+            int statusExit = await KiteCliRunner.ExecuteAsync(["status", "--home", tempHome], statusOut, statusErr);
+            Assert.Equal(0, statusExit);
+            Assert.Contains("Status    : Stopped", statusOut.ToString());
+        }
+        finally
+        {
+            try { Directory.Delete(tempHome, true); } catch { }
+        }
+    }
+
     private static async Task PostFormAsync(KiteInMemoryHost host, string path, string formUrlEncoded)
     {
         using var ms = new MemoryStream(Encoding.UTF8.GetBytes(formUrlEncoded));

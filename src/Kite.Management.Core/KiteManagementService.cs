@@ -287,17 +287,17 @@ public sealed class KiteManagementService
             return true;
         }
 
-        string? serverDllPath = LocateKiteServerDll();
-        if (string.IsNullOrEmpty(serverDllPath) || !File.Exists(serverDllPath))
+        KiteServerLaunchTarget? target = LocateKiteServerLaunchTarget();
+        if (target is null)
         {
             return false;
         }
 
         var psi = new ProcessStartInfo
         {
-            FileName = "dotnet",
-            Arguments = $"\"{serverDllPath}\" --home \"{_layout.RootDirectory}\"",
-            WorkingDirectory = Path.GetDirectoryName(serverDllPath) ?? AppContext.BaseDirectory,
+            FileName = target.FileName,
+            Arguments = $"{target.ArgumentsPrefix}--home \"{_layout.RootDirectory}\"",
+            WorkingDirectory = target.WorkingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -373,29 +373,105 @@ public sealed class KiteManagementService
         return true;
     }
 
-    private static string? LocateKiteServerDll()
+    public sealed record KiteServerLaunchTarget(
+        string FileName,
+        string ArgumentsPrefix,
+        string WorkingDirectory,
+        bool IsNativeExecutable,
+        string ResolvedBinaryPath);
+
+    public static KiteServerLaunchTarget? LocateKiteServerLaunchTarget(
+        string? baseDirectoryOverride = null,
+        string? processPathOverride = null,
+        string? envServerPathOverride = null)
     {
-        string localCandidate = Path.Combine(AppContext.BaseDirectory, "Kite.Server.dll");
-        if (IsRunnableDotNetApp(localCandidate))
+        string? envPath = envServerPathOverride ?? Environment.GetEnvironmentVariable("KITE_SERVER_PATH");
+        if (!string.IsNullOrWhiteSpace(envPath))
         {
-            return localCandidate;
+            if (File.Exists(envPath))
+            {
+                return BuildTargetFromFile(Path.GetFullPath(envPath));
+            }
+
+            if (Directory.Exists(envPath))
+            {
+                KiteServerLaunchTarget? fromEnvDir = ProbeDirectoryForServer(Path.GetFullPath(envPath));
+                if (fromEnvDir is not null)
+                {
+                    return fromEnvDir;
+                }
+            }
         }
 
-        string? current = AppContext.BaseDirectory;
+        var probeDirs = new List<string>();
+        void AddProbeDir(string? dir)
+        {
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                string full = Path.GetFullPath(dir);
+                if (!probeDirs.Contains(full, StringComparer.OrdinalIgnoreCase))
+                {
+                    probeDirs.Add(full);
+                }
+            }
+        }
+
+        string baseDir = baseDirectoryOverride ?? AppContext.BaseDirectory;
+        AddProbeDir(baseDir);
+
+        string? processPath = processPathOverride ?? Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath) && File.Exists(processPath))
+        {
+            string? procDir = Path.GetDirectoryName(processPath);
+            AddProbeDir(procDir);
+            try
+            {
+                FileSystemInfo? resolved = File.ResolveLinkTarget(processPath, returnFinalTarget: true);
+                if (resolved is not null)
+                {
+                    string? linkDir = Path.GetDirectoryName(resolved.FullName);
+                    AddProbeDir(linkDir);
+                    if (linkDir is not null)
+                    {
+                        AddProbeDir(Path.GetFullPath(Path.Combine(linkDir, "..", "libexec")));
+                        AddProbeDir(Path.GetFullPath(Path.Combine(linkDir, "..", "lib", "kite")));
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            if (procDir is not null)
+            {
+                AddProbeDir(Path.GetFullPath(Path.Combine(procDir, "..", "libexec")));
+                AddProbeDir(Path.GetFullPath(Path.Combine(procDir, "..", "lib", "kite")));
+            }
+        }
+
+        foreach (string dir in probeDirs)
+        {
+            KiteServerLaunchTarget? hit = ProbeDirectoryForServer(dir);
+            if (hit is not null)
+            {
+                return hit;
+            }
+        }
+
+        // Source repository dev fallback (Debug / Release)
+        string? current = baseDir;
         while (!string.IsNullOrEmpty(current))
         {
             if (File.Exists(Path.Combine(current, "Kite.slnx")))
             {
-                string debugDll = Path.Combine(current, "src", "Kite.Server", "bin", "Debug", "net10.0", "Kite.Server.dll");
-                if (IsRunnableDotNetApp(debugDll))
+                foreach (string config in (ReadOnlySpan<string>)["Debug", "Release"])
                 {
-                    return debugDll;
-                }
-
-                string releaseDll = Path.Combine(current, "src", "Kite.Server", "bin", "Release", "net10.0", "Kite.Server.dll");
-                if (IsRunnableDotNetApp(releaseDll))
-                {
-                    return releaseDll;
+                    string candidateDir = Path.Combine(current, "src", "Kite.Server", "bin", config, "net10.0");
+                    KiteServerLaunchTarget? hit = ProbeDirectoryForServer(candidateDir);
+                    if (hit is not null)
+                    {
+                        return hit;
+                    }
                 }
 
                 break;
@@ -404,7 +480,62 @@ public sealed class KiteManagementService
             current = Path.GetDirectoryName(current);
         }
 
+        // Single-binary CLI fallback: kite embeds KiteServerEngine directly via `kite run`.
+        if (!string.IsNullOrWhiteSpace(processPath) &&
+            File.Exists(processPath) &&
+            string.Equals(Path.GetFileNameWithoutExtension(processPath), "kite", StringComparison.OrdinalIgnoreCase))
+        {
+            string fullProc = Path.GetFullPath(processPath);
+            return new KiteServerLaunchTarget(
+                fullProc,
+                "run ",
+                Path.GetDirectoryName(fullProc) ?? Environment.CurrentDirectory,
+                true,
+                fullProc);
+        }
+
         return null;
+    }
+
+    private static KiteServerLaunchTarget? ProbeDirectoryForServer(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return null;
+        }
+
+        ReadOnlySpan<string> nativeNames = OperatingSystem.IsWindows()
+            ? ["Kite.Server.exe", "kite-server.exe"]
+            : ["Kite.Server", "kite-server"];
+
+        foreach (string name in nativeNames)
+        {
+            string exePath = Path.Combine(directory, name);
+            if (File.Exists(exePath))
+            {
+                return new KiteServerLaunchTarget(exePath, string.Empty, directory, true, exePath);
+            }
+        }
+
+        string dllCandidate = Path.Combine(directory, "Kite.Server.dll");
+        if (IsRunnableDotNetApp(dllCandidate))
+        {
+            return new KiteServerLaunchTarget("dotnet", $"\"{dllCandidate}\" ", directory, false, dllCandidate);
+        }
+
+        return null;
+    }
+
+    private static KiteServerLaunchTarget? BuildTargetFromFile(string fullPath)
+    {
+        if (fullPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsRunnableDotNetApp(fullPath)
+                ? new KiteServerLaunchTarget("dotnet", $"\"{fullPath}\" ", Path.GetDirectoryName(fullPath) ?? Environment.CurrentDirectory, false, fullPath)
+                : null;
+        }
+
+        return new KiteServerLaunchTarget(fullPath, string.Empty, Path.GetDirectoryName(fullPath) ?? Environment.CurrentDirectory, true, fullPath);
     }
 
     private static bool IsRunnableDotNetApp(string dllPath) =>
