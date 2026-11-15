@@ -16,6 +16,7 @@ Because Kite unifies static file serving, reverse proxying, polyglot process sup
 6. [Level 5 — Configuring Auto TLS (ACME v2 HTTP-01 / TLS-ALPN-01 / DNS-01 & On-Demand TLS)](#6-level-5--configuring-auto-tls)
 7. [Level 6 — Configuring Distributed State & Production Operations (Redis, WAF, OTLP, Importers)](#7-level-6--configuring-distributed-state--production-operations)
 8. [CLI & Troubleshooting Cheat Sheet](#8-cli--troubleshooting-cheat-sheet)
+9. [Performance & TechEmpower Benchmark Results](#9-performance--techempower-benchmark-results)
 
 ---
 
@@ -708,6 +709,57 @@ Kite lets you run multiple isolated server instances on the same dev machine wit
 3. **Did traffic hit the wrong site or route?** Run `kite route-test <full-url>` or open Desktop Studio **🧪 Debugger** to see the exact pipeline trace stage-by-stage.
 4. **Did a Python/Node worker exit or fail to bind?** Check **Workers → 📜 Stdout**, verify `PYTHONUNBUFFERED=1`, ensure `executable` isn't a Microsoft Store alias, and make sure your app honors `PORT` / `{port}` / `--urls`.
 5. **Broke a config while experimenting?** Run `kite history` and `kite rollback <snapshotId>` (or use **🕒 History → ↺ Restore** in Desktop Studio).
+
+---
+
+## 9. Performance & TechEmpower Benchmark Results
+
+Kite ships a multi-profile [TechEmpower FrameworkBenchmarks (TFB)](./benchmarks/techempower) integration ([`kite.dockerfile`](./benchmarks/techempower/kite.dockerfile), [`kite-ipc.dockerfile`](./benchmarks/techempower/kite-ipc.dockerfile), [`kite-proxy.dockerfile`](./benchmarks/techempower/kite-proxy.dockerfile), [`benchmark_config.json`](./benchmarks/techempower/benchmark_config.json), [`TechEmpowerEdgeMiddleware`](./benchmarks/techempower/Kite.TechEmpower.Plugin/TechEmpowerEdgeMiddleware.cs), and [`Kite.TechEmpower.App`](./benchmarks/techempower/Kite.TechEmpower.App/Program.cs)) exercised directly through the official `TechEmpower/FrameworkBenchmarks` (`./tfb`) Docker, PostgreSQL 18, and `wrk` harness.
+
+### 1. Apples-to-Apples Pipeline Overhead (`plaintext` & `json`)
+
+All frameworks measured sequentially inside the same single-host WSL2 Docker environment (`12` `wrk` threads, 15s per concurrency tier, HTTP/1.1 keep-alive; `plaintext` uses pipeline depth `16`):
+
+| Framework / Mode | Plaintext Peak (`req/s`) | Plaintext Tier | JSON Peak (`req/s`) | JSON Tier | Notes |
+| :--- | ---: | :--- | ---: | :--- | :--- |
+| **`aspnetcore`** [Platform] | 2,480,704.25 | `c=4096` | 231,117.47 | `c=256` | Stripped raw `IHttpConnection` socket baseline (no HTTP pipeline; baseline reference run) |
+| **`aspnetcore-minimal`** | 1,463,769.07 | `c=4096` | 200,955.80 | `c=512` | Raw Kestrel + Minimal APIs (no host routing, module chain, or telemetry) |
+| **`kite`** [Edge Plugin, Optimized] | **1,066,646.47** | `c=1024` | **190,719.20** | `c=512` | `[ThreadStatic]` telemetry, lock-free `EdgePluginHost`, single-lookup routing, known-header fast-paths (`+47.5%` vs. initial `723k`; `1,238,830` req/s in 5s cold burst) |
+| `nginx` [Static] | 367,905.80 | `c=256` | — | — | Native C Nginx (`default` TFB profile; Kite is **2.90x** faster on plaintext here) |
+| **`kite-ipc`** (`KiteWorkerIpc`) | **92,435.20** | `c=1024` | **71,729.07** | `c=512` | `Kite.Server` over buffered persistent `NamedPipe`/UDS `KiteIpcProtocol` into isolated `AssemblyLoadContext` |
+| **`kite-proxy`** (`OutOfProcessProxy`) | **78,455.56** | `c=1024` | **63,564.33** | `c=512` | `Kite.Server` reverse-proxying HTTP/1.1 over Unix domain sockets to child `Kite.TechEmpower.App` (`KiteWorkerIpc` is **+17.8%** plaintext / **+12.8%** JSON faster) |
+
+> [!TIP]
+> **Pipeline Overhead Breakdown**: Compared against bare `aspnetcore-minimal`, Kite's full reverse-proxy front door (`HostRouteTable` lookup, RFC 9112 `Host` validation, `PipelineActiveModules` security/CORS/header checks, `Server`/`Date` emission, thread-local telemetry, and `EdgePluginHost` dispatch) achieves **94.9%** of bare Kestrel Minimal API throughput on real per-request JSON serialization (**190,719** vs **200,956 req/s**) and **72.9%** on `16x`-pipelined synthetic plaintext (**1,066,646** vs **1,463,769 req/s**), while in-process Edge Plugins deliver **11.5x–13.6x** the plaintext throughput of out-of-process worker hops.
+
+### 2. Full PostgreSQL 18 Suite (`Kite [Edge Plugin]`)
+
+Measured with `Npgsql 10.0.0` (`NpgsqlSlimDataSourceBuilder`, `NpgsqlBatch` pipelining, `No Reset On Close=true`) in [`TechEmpowerDb`](./benchmarks/techempower/Kite.TechEmpower.Plugin/TechEmpowerDb.cs) via `./tfb --test kite --type db query update fortune cached-query`:
+
+| TFB Workload | Verification (`./tfb --mode verify`) | Peak / Headline (`req/s`) | Concurrency / Query Level | Avg Latency | Details |
+| :--- | :--- | ---: | :--- | :--- | :--- |
+| **`db`** | **PASS** (`512/512` queries) | **45,654.87** | `c=512` (`512` conns) | 11.01 ms | Single `SELECT id, randomnumber FROM world WHERE id = $1` per request |
+| **`fortune`** | **PASS** (`512/512` queries) | **41,883.87** | `c=512` (`512` conns) | 11.99 ms | `SELECT id, message FROM fortune`, append runtime row, ordinal sort, zero-alloc HTML UTF-8 encode |
+| **`query`** (`queries=1`) | **PASS** (`10240/10240` queries @ `20`) | **41,416.88** | `queries=1` (`c=512`) | 11.38 ms | 1 random `world` row read per request |
+| **`query`** (`queries=20`) | **PASS** (`10240/10240` queries @ `20`) | **17,635.40** | `queries=20` (`c=512`) | ~28 ms | 20 pipelined `world` `SELECT` queries per request via `NpgsqlBatch` (`352,708` SQL reads/s; **4.91x** vs pre-batch `3,593.57`) |
+| **`update`** (`queries=1`) | **WARN** (`10752/10752` queries, `0` failed tx) | **19,958.67** | `queries=1` (`c=512`) | 25.73 ms | Batched read + distinct-ID bulk `unnest` update |
+| **`update`** (`queries=20`) | **WARN** (`10752/10752` queries, `0` failed tx) | **6,832.38** | `queries=20` (`c=512`) | ~73 ms | 20 batched `SELECT`s + sorted collision-free `UPDATE world ... FROM unnest($1, $2)` per request (**2.10x** vs `3,256.20`) |
+| **`cached-query`** (`q=1`) | **PASS** | **175,054.80** | `queries=1` (`c=512`) | 2.82 ms | Warmed Postgres `world` flat-array cache served lock-free from `TechEmpowerEdgeMiddleware` |
+| **`cached-query`** (`q=100`) | **PASS** | **119,655.87** | `queries=100` (`c=512`) | 4.07 ms | 100 cached `WorldRow` items serialized dynamically per request (**375.07 MB/s**) |
+
+*(Note: TFB `./tfb --mode verify` passes all 7 `kite` checks and both `kite-ipc` / `kite-proxy` checks with zero `tfb` audit issues; `update` reports `WARN` rather than `PASS` solely because Postgres' index scan during the bulk `UPDATE` increments heap `n_tup_fetch` alongside the 20 `SELECT`s, with exact `10,752/10,752` executed SQL statements and `0` failed transactions.)*
+
+### 3. Benchmark Methodology & Important Disclaimers
+
+1. **Three Hosting Architectures Exercised**:
+   - `kite` (**Kite [Edge Plugin]**) executes `plaintext`, `json`, `cached-queries`, and all PostgreSQL 18 tests in-process via [`TechEmpowerEdgeMiddleware`](./benchmarks/techempower/Kite.TechEmpower.Plugin/TechEmpowerEdgeMiddleware.cs) after `HostRouteTable` site resolution and pipeline bitmask checks.
+   - `kite-ipc` (**Kite [Worker IPC]**) routes requests through `KiteRequestPipeline` -> `ApplicationPoolSupervisor` -> buffered binary `KiteIpcProtocol` over `NamedPipe` / Unix domain sockets into [`Kite.TechEmpower.App`](./benchmarks/techempower/Kite.TechEmpower.App/Program.cs) loaded inside a collectible `AssemblyLoadContext`.
+   - `kite-proxy` (**Kite [Out-Of-Process Proxy]**) forwards requests via `HttpProxyForwarder` over HTTP/1.1 Unix domain sockets (`useUnixDomainSocket: true`) to a managed child `Kite.TechEmpower.App` process (`dotnet`), explicitly disabling Kite's output cache and compression (`caching.enabled: false`) so upstream HTTP timing and dynamic `Date` headers are measured directly without cache shortcuts.
+2. **Benchmark-Specific Server Configuration**:
+   - To isolate request/worker/database capacity without disk I/O or tracing overhead, [`benchmarks/techempower/kite-data/config/server.json`](./benchmarks/techempower/kite-data/config/server.json) disables W3C/JSON access logging (`w3CLoggingEnabled: false`), OpenTelemetry/Prometheus instrumentation, compression, output caching, edge mesh coordination (`mesh.mode: "Disabled"`), and slowloris min-data-rate timers (`0`). Dockerfiles also set standard TFB `.NET 10` runtime flags (`DOTNET_GCDynamicAdaptationMode=0`, `DOTNET_ReadyToRun=0`, `DOTNET_HillClimbing_Disable=1`) and `Warning` log level.
+3. **Single-Host WSL2/Docker Environment (Not Comparable to Official TFB Citrine/Azure Runs)**:
+   - All tests were **informal local runs** on a single Windows host inside Docker Desktop / **WSL2 (`Linux 6.18.58.1-microsoft-standard-WSL2`)** where the 12-thread `wrk` generator, `Kite.Server`, worker processes, and PostgreSQL 18 shared CPU cores and the virtual Docker bridge network (`tfb`).
+   - Because client, server, and database competed for local CPU and loopback sockets—rather than running on TechEmpower's isolated physical multi-node Citrine/Azure hardware—these figures must **not** be compared directly against published official TFB round rankings. Resource contention also drives timeout/read errors at extreme connection counts (`c=4096`/`c=16384`).
 
 ---
 

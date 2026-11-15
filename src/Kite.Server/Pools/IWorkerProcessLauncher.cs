@@ -72,7 +72,9 @@ public sealed class RealWorkerProcessLauncher : IWorkerProcessLauncher
         {
             string rawArgs = appConfig.Arguments ?? string.Empty;
             bool useUnixSocket = pool.ProcessModel.UseUnixDomainSocket && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17063) || (pool.ProcessModel.UseUnixDomainSocket && !OperatingSystem.IsWindows());
-            string? unixSocketPath = useUnixSocket && rawArgs.Contains("{socket}", StringComparison.OrdinalIgnoreCase)
+            string? unixSocketPath = useUnixSocket &&
+                                     (rawArgs.Contains("{socket}", StringComparison.OrdinalIgnoreCase) ||
+                                      rawArgs.Contains("--urls {url}", StringComparison.OrdinalIgnoreCase))
                 ? Path.Combine(Path.GetTempPath(), $"kite-{pool.Id}-{workerId}-{Guid.NewGuid():N}.sock")
                 : null;
 
@@ -85,10 +87,11 @@ public sealed class RealWorkerProcessLauncher : IWorkerProcessLauncher
             string effectiveArgs;
             if (unixSocketPath is not null)
             {
+                string kestrelUnixUrl = $"http://unix:{unixSocketPath}";
                 effectiveArgs = rawArgs
                     .Replace("{socket}", unixSocketPath, StringComparison.OrdinalIgnoreCase)
                     .Replace("{port}", portStr, StringComparison.OrdinalIgnoreCase)
-                    .Replace("{url}", transportUrl, StringComparison.OrdinalIgnoreCase)
+                    .Replace("{url}", rawArgs.Contains("--urls", StringComparison.OrdinalIgnoreCase) ? kestrelUnixUrl : transportUrl, StringComparison.OrdinalIgnoreCase)
                     .Trim();
             }
             else if (rawArgs.Contains("{port}", StringComparison.OrdinalIgnoreCase) ||

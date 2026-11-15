@@ -1,0 +1,26 @@
+{
+  "$schema": "https://kite.local/schemas/site.v1.json",
+  "configVersion": "1.0",
+  "id": "default-site",
+  "name": "TechEmpower Proxy Site",
+  "desiredState": "Started",
+  "bindings": [
+    {
+      "protocol": "http",
+      "ipAddress": "*",
+      "port": 8080,
+      "host": "*"
+    }
+  ],
+  "rootApplication": {
+    "path": "/",
+    "poolId": "default-pool",
+    "physicalPath": "/app/app",
+    "executable": "dotnet",
+    "arguments": "/app/app/Kite.TechEmpower.App.dll --urls {url}",
+    "hostingMode": "OutOfProcessProxy"
+  },
+  "features": {
+    "inheritServerDefaults": true
+  }
+}

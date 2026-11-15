@@ -20,8 +20,10 @@ using Kite.Server.Tls;
 using Kite.Server.Transport;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.Extensions.Logging;
 
 namespace Kite.Server.Hosting;
 
@@ -586,6 +588,15 @@ public sealed class KiteServerEngine : IAsyncDisposable
         bool quicSupported)
     {
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseSockets(sockets =>
+        {
+            sockets.WaitForDataBeforeAllocatingBuffer = snapshot.Server.Transport.WaitForDataBeforeAllocatingBuffer;
+            if (OperatingSystem.IsLinux() && snapshot.Server.Transport.EnableInlineSocketScheduling)
+            {
+                sockets.UnsafePreferInlineScheduling = true;
+            }
+        });
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
             kestrel.AddServerHeader = false;
@@ -736,8 +747,13 @@ public sealed class KiteServerEngine : IAsyncDisposable
         });
 
         WebApplication app = builder.Build();
-        app.UseWebSockets();
-        app.Run(ctx => _pipeline.ExecuteAsync(ctx));
+        IApplicationBuilder wsBranch = ((IApplicationBuilder)app).New();
+        wsBranch.UseWebSockets();
+        wsBranch.Run(ctx => _pipeline.ExecuteAsync(ctx));
+        RequestDelegate wsPipelineDelegate = wsBranch.Build();
+        app.Run(ctx => ctx.Request.Headers.Upgrade.Count > 0
+            ? wsPipelineDelegate(ctx)
+            : _pipeline.ExecuteAsync(ctx));
         return app;
     }
 

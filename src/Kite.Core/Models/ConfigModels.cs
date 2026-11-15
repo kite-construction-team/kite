@@ -153,6 +153,8 @@ public sealed class HttpTransportConfig
     public double MinResponseDataRateBytesPerSecond { get; set; } = 240.0;
     public int SlowlorisGracePeriodSeconds { get; set; } = 5;
     public int GracefulDrainTimeoutSeconds { get; set; } = 15;
+    public bool EnableInlineSocketScheduling { get; set; } = false;
+    public bool WaitForDataBeforeAllocatingBuffer { get; set; } = true;
 }
 
 public sealed class ObservabilityConfig

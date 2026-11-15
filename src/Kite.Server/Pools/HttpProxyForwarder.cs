@@ -15,6 +15,29 @@ namespace Kite.Server.Pools;
 /// </summary>
 internal static class HttpProxyForwarder
 {
+    private static HttpMethod ResolveHttpMethod(string method)
+    {
+        if (HttpMethods.IsGet(method)) return HttpMethod.Get;
+        if (HttpMethods.IsPost(method)) return HttpMethod.Post;
+        if (HttpMethods.IsPut(method)) return HttpMethod.Put;
+        if (HttpMethods.IsDelete(method)) return HttpMethod.Delete;
+        if (HttpMethods.IsHead(method)) return HttpMethod.Head;
+        if (HttpMethods.IsOptions(method)) return HttpMethod.Options;
+        if (HttpMethods.IsPatch(method)) return HttpMethod.Patch;
+        return HttpMethod.Parse(method);
+    }
+
+    private static string ResolveRemoteIp(IPAddress? address)
+    {
+        if (address is null || IPAddress.IsLoopback(address))
+        {
+            return address?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                ? "::1"
+                : "127.0.0.1";
+        }
+        return address.ToString();
+    }
+
     public static async ValueTask<int> ForwardAsync(
         HttpContext context,
         HttpMessageInvoker invoker,
@@ -24,9 +47,13 @@ internal static class HttpProxyForwarder
         CancellationToken ct,
         bool preserveHostHeader = false)
     {
-        string trimmedBase = baseAddress.TrimEnd('/');
-        string targetUri = $"{trimmedBase}{subPath.Span}{context.Request.QueryString.Value}";
-        using var proxyRequest = new HttpRequestMessage(new HttpMethod(context.Request.Method), targetUri);
+        string trimmedBase = baseAddress.EndsWith('/') ? baseAddress[..^1] : baseAddress;
+        ReadOnlySpan<char> querySpan = context.Request.QueryString.Value.AsSpan();
+        string targetUri = querySpan.IsEmpty
+            ? string.Concat(trimmedBase.AsSpan(), subPath.Span)
+            : string.Concat(trimmedBase.AsSpan(), subPath.Span, querySpan);
+
+        using var proxyRequest = new HttpRequestMessage(ResolveHttpMethod(context.Request.Method), targetUri);
 
         if (preserveHostHeader && context.Request.Host.HasValue)
         {
@@ -35,34 +62,50 @@ internal static class HttpProxyForwarder
             proxyRequest.Headers.TryAddWithoutValidation("X-Kite-Mesh-Hop", (prevHop + 1).ToString());
         }
 
-        bool isGrpc = context.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true;
+        string? reqContentType = context.Request.ContentType;
+        bool isGrpc = reqContentType is not null && reqContentType.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase);
         if (isGrpc || context.Request.Protocol.Equals("HTTP/2", StringComparison.OrdinalIgnoreCase))
         {
             proxyRequest.Version = HttpVersion.Version20;
             proxyRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
         }
 
-        if (context.Request.ContentLength > 0 || context.Request.Headers.ContainsKey("Transfer-Encoding"))
+        bool hasBody = context.Request.ContentLength > 0 || context.Request.Headers.TransferEncoding.Count > 0;
+        if (hasBody)
         {
             proxyRequest.Content = new StreamContent(context.Request.Body);
         }
 
         foreach (KeyValuePair<string, StringValues> header in context.Request.Headers)
         {
-            if (string.Equals(header.Key, "Host", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(header.Key, "Connection", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(header.Key, "Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
+            string key = header.Key;
+            if (string.Equals(key, "Host", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "Connection", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(key, "Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (!proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray()))
+            StringValues vals = header.Value;
+            if (vals.Count == 1)
             {
-                proxyRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                string singleVal = vals[0] ?? string.Empty;
+                if (!proxyRequest.Headers.TryAddWithoutValidation(key, singleVal))
+                {
+                    proxyRequest.Content?.Headers.TryAddWithoutValidation(key, singleVal);
+                }
+            }
+            else if (vals.Count > 1)
+            {
+                string[] arr = vals.ToArray()!;
+                if (!proxyRequest.Headers.TryAddWithoutValidation(key, arr))
+                {
+                    proxyRequest.Content?.Headers.TryAddWithoutValidation(key, arr);
+                }
             }
         }
 
-        string remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        string remoteIp = ResolveRemoteIp(context.Connection.RemoteIpAddress);
         string host = context.Request.Host.Value ?? "localhost";
         string proto = context.Request.Scheme;
         proxyRequest.Headers.TryAddWithoutValidation("Forwarded", $"for=\"{remoteIp}\";proto={proto};host=\"{host}\"");
@@ -77,25 +120,42 @@ internal static class HttpProxyForwarder
 
         int statusCode = (int)upstreamResponse.StatusCode;
         context.Response.StatusCode = statusCode;
+        IHeaderDictionary respHeaders = context.Response.Headers;
 
-        foreach (var header in upstreamResponse.Headers)
+        foreach (var header in upstreamResponse.Headers.NonValidated)
         {
-            if (!string.Equals(header.Key, "Transfer-Encoding", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(header.Key, "Trailer", StringComparison.OrdinalIgnoreCase))
+            string key = header.Key;
+            if (!string.Equals(key, "Transfer-Encoding", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(key, "Trailer", StringComparison.OrdinalIgnoreCase))
             {
-                context.Response.Headers[header.Key] = header.Value.ToArray();
+                respHeaders[key] = header.Value.Count == 1 ? header.Value.ToString() : header.Value.ToArray();
             }
         }
 
-        foreach (var header in upstreamResponse.Content.Headers)
+        foreach (var header in upstreamResponse.Content.Headers.NonValidated)
         {
-            context.Response.Headers[header.Key] = header.Value.ToArray();
+            respHeaders[header.Key] = header.Value.Count == 1 ? header.Value.ToString() : header.Value.ToArray();
         }
 
-        bool isStreaming = enableStreamingPassThrough ||
-                           isGrpc ||
-                           context.Request.Headers.Accept.ToString().Contains("text/event-stream", StringComparison.OrdinalIgnoreCase) ||
-                           upstreamResponse.Content.Headers.ContentType?.MediaType?.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase) == true;
+        bool isStreaming = enableStreamingPassThrough || isGrpc;
+        if (!isStreaming)
+        {
+            StringValues acceptValues = context.Request.Headers.Accept;
+            for (int i = 0; i < acceptValues.Count; i++)
+            {
+                if (acceptValues[i]?.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    isStreaming = true;
+                    break;
+                }
+            }
+
+            if (!isStreaming &&
+                upstreamResponse.Content.Headers.ContentType?.MediaType?.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                isStreaming = true;
+            }
+        }
 
         if (isStreaming)
         {

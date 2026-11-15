@@ -16,6 +16,26 @@ public sealed record CompiledRewriteRule(
 
 public sealed record StatusCodeRange(int Min, int Max);
 
+[Flags]
+public enum PipelineActiveModules
+{
+    None = 0,
+    HttpsRedirect = 1 << 0,
+    Mtls = 1 << 1,
+    Cors = 1 << 2,
+    CustomHeaders = 1 << 3,
+    RemoveHeaders = 1 << 4,
+    IpOrRequestOrWafGate = 1 << 5,
+    WafBodyInspection = 1 << 6,
+    RateLimiting = 1 << 7,
+    UrlRewriteOrRedirect = 1 << 8,
+    Authentication = 1 << 9,
+    ForwardAuth = 1 << 10,
+    FrebTracing = 1 << 11,
+    W3COrJsonLogging = 1 << 12,
+    SuppressXContentTypeOptions = 1 << 13
+}
+
 /// <summary>
 /// Immutable, lock-free compiled representation of a site's effective <see cref="SiteFeaturesConfig"/>
 /// (inheriting <see cref="ServerConfig.Features"/> when configured). Compiled once per config reload
@@ -39,6 +59,7 @@ public sealed class CompiledSiteFeatures
     public required FrozenSet<string> TrustedMtlsThumbprints { get; init; }
     public required SearchValues<string>? WafTargetPatterns { get; init; }
     public required SearchValues<string>? WafUserAgentPatterns { get; init; }
+    public PipelineActiveModules ActiveModules { get; init; }
 
     public bool IsFrebStatusTriggered(int statusCode)
     {
@@ -145,6 +166,45 @@ public sealed class CompiledSiteFeatures
 
         (SearchValues<string>? wafTargetPatterns, SearchValues<string>? wafUaPatterns) = CompileWafPatterns(effective.EdgeWaf);
 
+        PipelineActiveModules activeModules = PipelineActiveModules.None;
+        if (effective.TlsPolicy.RedirectHttpToHttps) activeModules |= PipelineActiveModules.HttpsRedirect;
+        if (effective.TlsPolicy.Mtls.ClientCertificateMode != MtlsClientCertificateMode.None) activeModules |= PipelineActiveModules.Mtls;
+        if (effective.Cors.Enabled) activeModules |= PipelineActiveModules.Cors;
+        if (effective.CustomHeaders.Count > 0) activeModules |= PipelineActiveModules.CustomHeaders;
+        if (effective.RemoveHeaders.Count > 0) activeModules |= PipelineActiveModules.RemoveHeaders;
+        if (effective.RemoveHeaders.Any(static h => string.Equals(h, "X-Content-Type-Options", StringComparison.OrdinalIgnoreCase)))
+        {
+            activeModules |= PipelineActiveModules.SuppressXContentTypeOptions;
+        }
+        if (effective.IpRestrictions.Enabled || effective.RequestFiltering.Enabled || effective.EdgeWaf.Enabled)
+        {
+            activeModules |= PipelineActiveModules.IpOrRequestOrWafGate;
+        }
+        if (effective.EdgeWaf.Enabled && effective.EdgeWaf.InspectRequestBody)
+        {
+            activeModules |= PipelineActiveModules.WafBodyInspection;
+        }
+        if (effective.RateLimiting.Enabled) activeModules |= PipelineActiveModules.RateLimiting;
+        if (!string.IsNullOrWhiteSpace(effective.RedirectsAndErrors.GlobalRedirectUrl) ||
+            effective.RedirectsAndErrors.EnforceTrailingSlash ||
+            (effective.UrlRewrite.Enabled && rewriteRules.Count > 0))
+        {
+            activeModules |= PipelineActiveModules.UrlRewriteOrRedirect;
+        }
+        if (!effective.Authentication.AnonymousEnabled ||
+            effective.Authentication.JwtEnabled ||
+            effective.Authentication.ApiKeyEnabled ||
+            effective.Authentication.BasicAuthEnabled)
+        {
+            activeModules |= PipelineActiveModules.Authentication;
+        }
+        if (effective.ForwardAuth.Enabled && !string.IsNullOrWhiteSpace(effective.ForwardAuth.EndpointUrl))
+        {
+            activeModules |= PipelineActiveModules.ForwardAuth;
+        }
+        if (effective.FailedRequestTracing.Enabled) activeModules |= PipelineActiveModules.FrebTracing;
+        if (effective.W3CLoggingEnabled) activeModules |= PipelineActiveModules.W3COrJsonLogging;
+
         return new CompiledSiteFeatures
         {
             EffectiveConfig = effective,
@@ -162,7 +222,8 @@ public sealed class CompiledSiteFeatures
             JwtRsaPublicKey = rsaKey,
             TrustedMtlsThumbprints = trustedThumbprints,
             WafTargetPatterns = wafTargetPatterns,
-            WafUserAgentPatterns = wafUaPatterns
+            WafUserAgentPatterns = wafUaPatterns,
+            ActiveModules = activeModules
         };
     }
 

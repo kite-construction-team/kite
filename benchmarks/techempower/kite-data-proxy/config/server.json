@@ -1,0 +1,43 @@
+{
+  "$schema": "https://kite.local/schemas/server.v1.json",
+  "configVersion": "1.0",
+  "serverName": "Kite-TechEmpower-Proxy",
+  "maxConcurrentConnections": 100000,
+  "keepAliveTimeoutSeconds": 120,
+  "headerTimeoutSeconds": 30,
+  "enableAltSvcHeader": false,
+  "defaultCompressionEnabled": false,
+  "defaultCachingEnabled": false,
+  "statusPublishIntervalMilliseconds": 5000,
+  "transport": {
+    "enableHttp2": true,
+    "enableHttp3": false,
+    "minRequestBodyDataRateBytesPerSecond": 0,
+    "minResponseDataRateBytesPerSecond": 0
+  },
+  "observability": {
+    "enableOpenTelemetryTracing": false,
+    "enablePrometheusMetrics": false,
+    "enableHealthEndpoints": false,
+    "accessLogFormat": "W3C"
+  },
+  "mesh": {
+    "mode": "Disabled"
+  },
+  "edgePlugins": [],
+  "features": {
+    "inheritServerDefaults": false,
+    "stripServerHeader": false,
+    "w3CLoggingEnabled": false,
+    "caching": {
+      "enabled": false
+    },
+    "compression": {
+      "enabled": false
+    },
+    "removeHeaders": [
+      "X-Powered-By",
+      "X-Content-Type-Options"
+    ]
+  }
+}

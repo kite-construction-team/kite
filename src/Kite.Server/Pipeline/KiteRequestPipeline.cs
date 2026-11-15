@@ -28,36 +28,25 @@ public sealed class LatencyRingTracker
 {
     private const int Capacity = 256;
     private readonly double[] _samples = new double[Capacity];
-    private readonly Lock _lock = new();
-    private int _writeIndex;
-    private int _count;
+    private long _writeCursor;
 
     public void Record(double durationMs)
     {
-        lock (_lock)
-        {
-            _samples[_writeIndex] = durationMs;
-            _writeIndex = (_writeIndex + 1) % Capacity;
-            if (_count < Capacity)
-            {
-                _count++;
-            }
-        }
+        long seq = Interlocked.Increment(ref _writeCursor) - 1;
+        _samples[(int)(seq & (Capacity - 1))] = durationMs;
     }
 
     public (double AvgMs, double P99Ms) ComputeStats()
     {
-        int n;
-        Span<double> copy = stackalloc double[Capacity];
-        lock (_lock)
+        long cursor = Volatile.Read(ref _writeCursor);
+        int n = (int)Math.Min(cursor, Capacity);
+        if (n <= 0)
         {
-            n = _count;
-            if (n == 0)
-            {
-                return (0.0, 0.0);
-            }
-            _samples.AsSpan(0, n).CopyTo(copy);
+            return (0.0, 0.0);
         }
+
+        Span<double> copy = stackalloc double[Capacity];
+        _samples.AsSpan(0, n).CopyTo(copy);
 
         double sum = 0;
         for (int i = 0; i < n; i++)
@@ -71,8 +60,24 @@ public sealed class LatencyRingTracker
     }
 }
 
+public sealed class SiteThreadCounter
+{
+#pragma warning disable CS0169
+    private long _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6;
+    public long Requests;
+    public long Status2xx;
+    public long Status3xx;
+    public long Status4xx;
+    public long Status5xx;
+    private long _padTail0, _padTail1, _padTail2, _padTail3, _padTail4, _padTail5, _padTail6;
+#pragma warning restore CS0169
+}
+
 public sealed class SiteRuntimeTelemetry
 {
+    internal readonly ThreadLocal<SiteThreadCounter> ThreadCounters =
+        new(static () => new SiteThreadCounter(), trackAllValues: true);
+
     public long TotalRequests;
     public long Status2xxCount;
     public long Status3xxCount;
@@ -87,8 +92,28 @@ public sealed class SiteRuntimeTelemetry
     private long _lastSnapshotTicks = Stopwatch.GetTimestamp();
     private long _lastTotalRequests;
 
+    public void PublishAggregated()
+    {
+        long reqs = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
+        foreach (SiteThreadCounter c in ThreadCounters.Values)
+        {
+            reqs += Volatile.Read(ref c.Requests);
+            s2 += Volatile.Read(ref c.Status2xx);
+            s3 += Volatile.Read(ref c.Status3xx);
+            s4 += Volatile.Read(ref c.Status4xx);
+            s5 += Volatile.Read(ref c.Status5xx);
+        }
+        Volatile.Write(ref TotalRequests, reqs);
+        Volatile.Write(ref Status2xxCount, s2);
+        Volatile.Write(ref Status3xxCount, s3);
+        Volatile.Write(ref Status4xxCount, s4);
+        Volatile.Write(ref Status5xxCount, s5);
+    }
+
     public (double Rps, double AvgLatencyMs, double P99LatencyMs, double CacheHitPct) SampleRateAndLatency()
     {
+        PublishAggregated();
+
         long now = Stopwatch.GetTimestamp();
         double elapsedSec = Math.Max(0.1, Stopwatch.GetElapsedTime(_lastSnapshotTicks, now).TotalSeconds);
         _lastSnapshotTicks = now;
@@ -108,6 +133,35 @@ public sealed class SiteRuntimeTelemetry
 
 public sealed class KiteRequestPipeline : IDisposable
 {
+    private sealed class ThreadCacheEntry(KiteRequestPipeline owner, ThreadTelemetrySlot slot)
+    {
+        public readonly KiteRequestPipeline Owner = owner;
+        public readonly ThreadTelemetrySlot Slot = slot;
+    }
+
+    [ThreadStatic]
+    private static ThreadCacheEntry? t_threadCache;
+
+    private sealed class ThreadTelemetrySlot
+    {
+#pragma warning disable CS0169
+        private long _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6;
+        public long Entered;
+        public long Completed;
+        public long Status2xx;
+        public long Status3xx;
+        public long Status4xx;
+        public long Status5xx;
+        public long BytesReceived;
+        public string? LastValidatedHost;
+        public string? LastSiteId;
+        public SiteRuntimeTelemetry? LastSite;
+        public SiteThreadCounter? LastSiteSlot;
+        private long _padTail0, _padTail1, _padTail2, _padTail3, _padTail4, _padTail5, _padTail6;
+#pragma warning restore CS0169
+    }
+
+    private static readonly SearchValues<char> InvalidHostChars = SearchValues.Create(" \t/\r\n\v\f");
     private static readonly FileExtensionContentTypeProvider MimeProvider = CreateMimeProvider();
     private static readonly ObjectPool<FrebTraceScope> FrebScopePool =
         new DefaultObjectPoolProvider { MaximumRetained = Environment.ProcessorCount * 32 }
@@ -118,6 +172,7 @@ public sealed class KiteRequestPipeline : IDisposable
     private readonly KiteOutputCacheModule _outputCache;
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, SiteRuntimeTelemetry> _siteTelemetry = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ThreadLocal<ThreadTelemetrySlot> _threadTelemetry = new(static () => new ThreadTelemetrySlot(), trackAllValues: true);
     private readonly Action<string, string>? _w3cLogSink;
     private readonly Action<string, string>? _jsonLogSink;
     private readonly Action<FrebTraceRecord>? _frebSink;
@@ -134,14 +189,11 @@ public sealed class KiteRequestPipeline : IDisposable
     });
     private readonly LatencyRingTracker _globalLatency = new();
 
-    private long _totalRequestsProcessed;
     private long _totalBytesSent;
-    private long _totalBytesReceived;
-    private long _activeConnections;
-    private long _interval2xx;
-    private long _interval3xx;
-    private long _interval4xx;
-    private long _interval5xx;
+    private long _lastInterval2xx;
+    private long _lastInterval3xx;
+    private long _lastInterval4xx;
+    private long _lastInterval5xx;
     private long _lastIntervalRequests;
     private long _lastIntervalBytesOut;
     private long _lastIntervalBytesIn;
@@ -176,10 +228,49 @@ public sealed class KiteRequestPipeline : IDisposable
 
     public IReadOnlyCollection<string> GetTrackedSiteIds() => _siteTelemetry.Keys.ToList();
 
-    public long TotalRequestsProcessed => Interlocked.Read(ref _totalRequestsProcessed);
+    public long TotalRequestsProcessed
+    {
+        get
+        {
+            long sum = 0;
+            foreach (ThreadTelemetrySlot slot in _threadTelemetry.Values)
+            {
+                sum += Volatile.Read(ref slot.Entered);
+            }
+            return sum;
+        }
+    }
+
     public long TotalBytesSent => Interlocked.Read(ref _totalBytesSent);
-    public long TotalBytesReceived => Interlocked.Read(ref _totalBytesReceived);
-    public long ActiveConnections => Interlocked.Read(ref _activeConnections);
+
+    public long TotalBytesReceived
+    {
+        get
+        {
+            long sum = 0;
+            foreach (ThreadTelemetrySlot slot in _threadTelemetry.Values)
+            {
+                sum += Volatile.Read(ref slot.BytesReceived);
+            }
+            return sum;
+        }
+    }
+
+    public long ActiveConnections
+    {
+        get
+        {
+            long entered = 0;
+            long completed = 0;
+            foreach (ThreadTelemetrySlot slot in _threadTelemetry.Values)
+            {
+                entered += Volatile.Read(ref slot.Entered);
+                completed += Volatile.Read(ref slot.Completed);
+            }
+            return Math.Max(0, entered - completed);
+        }
+    }
+
     public KiteOutputCacheModule OutputCache => _outputCache;
 
     public TelemetrySampleBucket DrainIntervalTelemetry(DateTimeOffset nowUtc, out double avgLatencyMs)
@@ -188,7 +279,20 @@ public sealed class KiteRequestPipeline : IDisposable
         long prevTs = Interlocked.Exchange(ref _lastIntervalTimestamp, nowTs);
         double sec = Math.Max(0.25, Stopwatch.GetElapsedTime(prevTs, nowTs).TotalSeconds);
 
-        long totalReqs = TotalRequestsProcessed;
+        long totalReqs = 0;
+        long total2xx = 0;
+        long total3xx = 0;
+        long total4xx = 0;
+        long total5xx = 0;
+        foreach (ThreadTelemetrySlot slot in _threadTelemetry.Values)
+        {
+            totalReqs += Volatile.Read(ref slot.Entered);
+            total2xx += Volatile.Read(ref slot.Status2xx);
+            total3xx += Volatile.Read(ref slot.Status3xx);
+            total4xx += Volatile.Read(ref slot.Status4xx);
+            total5xx += Volatile.Read(ref slot.Status5xx);
+        }
+
         long deltaReqs = Math.Max(0, totalReqs - Interlocked.Exchange(ref _lastIntervalRequests, totalReqs));
 
         long totalOut = TotalBytesSent;
@@ -197,10 +301,10 @@ public sealed class KiteRequestPipeline : IDisposable
         long totalIn = TotalBytesReceived;
         long deltaIn = Math.Max(0, totalIn - Interlocked.Exchange(ref _lastIntervalBytesIn, totalIn));
 
-        int c2 = (int)Interlocked.Exchange(ref _interval2xx, 0);
-        int c3 = (int)Interlocked.Exchange(ref _interval3xx, 0);
-        int c4 = (int)Interlocked.Exchange(ref _interval4xx, 0);
-        int c5 = (int)Interlocked.Exchange(ref _interval5xx, 0);
+        int c2 = (int)Math.Max(0, total2xx - Interlocked.Exchange(ref _lastInterval2xx, total2xx));
+        int c3 = (int)Math.Max(0, total3xx - Interlocked.Exchange(ref _lastInterval3xx, total3xx));
+        int c4 = (int)Math.Max(0, total4xx - Interlocked.Exchange(ref _lastInterval4xx, total4xx));
+        int c5 = (int)Math.Max(0, total5xx - Interlocked.Exchange(ref _lastInterval5xx, total5xx));
 
         (double avg, double p99) = _globalLatency.ComputeStats();
         avgLatencyMs = avg;
@@ -219,55 +323,110 @@ public sealed class KiteRequestPipeline : IDisposable
         };
     }
 
-    public SiteRuntimeTelemetry GetSiteTelemetry(string siteId) =>
-        _siteTelemetry.GetOrAdd(siteId, static _ => new SiteRuntimeTelemetry());
-
-    public async Task ExecuteAsync(HttpContext context)
+    public SiteRuntimeTelemetry GetSiteTelemetry(string siteId)
     {
-        Interlocked.Increment(ref _activeConnections);
-        Interlocked.Increment(ref _totalRequestsProcessed);
-        long startTimestamp = Stopwatch.GetTimestamp();
+        SiteRuntimeTelemetry telemetry = _siteTelemetry.GetOrAdd(siteId, static _ => new SiteRuntimeTelemetry());
+        telemetry.PublishAggregated();
+        return telemetry;
+    }
+
+    private SiteRuntimeTelemetry ResolveSiteTelemetry(ThreadTelemetrySlot slot, string siteId, out SiteThreadCounter siteSlot)
+    {
+        if (ReferenceEquals(slot.LastSiteId, siteId) && slot.LastSite is not null && slot.LastSiteSlot is not null)
+        {
+            siteSlot = slot.LastSiteSlot;
+            return slot.LastSite;
+        }
+
+        SiteRuntimeTelemetry telemetry = _siteTelemetry.GetOrAdd(siteId, static _ => new SiteRuntimeTelemetry());
+        siteSlot = telemetry.ThreadCounters.Value!;
+        slot.LastSiteId = siteId;
+        slot.LastSite = telemetry;
+        slot.LastSiteSlot = siteSlot;
+        return telemetry;
+    }
+
+    private static bool IsObservabilityEndpointRequest(string requestPath, ObservabilityConfig obs) =>
+        (obs.EnableHealthEndpoints &&
+         (string.Equals(requestPath, obs.HealthEndpointPath, StringComparison.Ordinal) ||
+          string.Equals(requestPath, obs.ReadyEndpointPath, StringComparison.Ordinal))) ||
+        (obs.EnablePrometheusMetrics &&
+         string.Equals(requestPath, obs.MetricsPath, StringComparison.Ordinal));
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private ThreadTelemetrySlot GetThreadSlot()
+    {
+        ThreadCacheEntry? cached = t_threadCache;
+        if (cached is not null && ReferenceEquals(cached.Owner, this))
+        {
+            return cached.Slot;
+        }
+
+        ThreadTelemetrySlot slot = _threadTelemetry.Value!;
+        t_threadCache = new ThreadCacheEntry(this, slot);
+        return slot;
+    }
+
+    public Task ExecuteAsync(HttpContext context)
+    {
+        ThreadTelemetrySlot slot = GetThreadSlot();
+        long entered = slot.Entered + 1;
+        Volatile.Write(ref slot.Entered, entered);
+        bool sampleLatency = (entered & 63) == 1;
 
         if (context.Request.ContentLength is long reqLen && reqLen > 0)
         {
-            Interlocked.Add(ref _totalBytesReceived, reqLen);
+            Volatile.Write(ref slot.BytesReceived, slot.BytesReceived + reqLen);
         }
-
-        KiteRouteMatchContext routeCtx = KiteObjectPools.RouteContextPool.Get();
-        routeCtx.RequestStartTimestamp = startTimestamp;
-        FrebTraceScope frebScope = FrebScopePool.Get();
-        frebScope.Begin(startTimestamp);
 
         CompiledSiteRoute? compiledSite = null;
         SiteRuntimeTelemetry? telemetry = null;
+        SiteThreadCounter? siteSlot = null;
         string rawHost = string.Empty;
         int localPort = context.Connection.LocalPort;
         string requestPath = context.Request.Path.Value ?? "/";
         HostRouteTable routeTable = _routeTableAccessor();
-        using Activity? activity = KiteMetricsAndTracing.StartRequestActivity(context, routeTable.ServerConfig.Observability);
+        ObservabilityConfig obs = routeTable.ServerConfig.Observability;
+        Activity? activity = obs.EnableOpenTelemetryTracing
+            ? KiteMetricsAndTracing.StartRequestActivity(context, obs)
+            : null;
+        long startTimestamp = (sampleLatency || activity is not null)
+            ? Stopwatch.GetTimestamp()
+            : 0;
+        FrebTraceScope? frebScope = null;
 
         try
         {
-            if (await KiteMetricsAndTracing.TryHandleObservabilityEndpointAsync(
-                    context,
-                    requestPath,
-                    routeTable.ServerConfig,
-                    this,
-                    routeTable,
-                    _upstreamManager).ConfigureAwait(false))
+            if ((obs.EnableHealthEndpoints || obs.EnablePrometheusMetrics) &&
+                IsObservabilityEndpointRequest(requestPath, obs))
             {
-                return;
+                return HandleObservabilityAsync(
+                    context,
+                    startTimestamp,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity);
             }
 
             // 1. RFC 9112 Section 5.4: Validate Host header presence & uniqueness
-            if (!ValidateHostHeader(context.Request, out rawHost))
+            if (!ValidateHostHeader(context.Request, slot, out rawHost))
             {
-                await WriteProblemDetailsAsync(
+                return WriteErrorAndFinalizeAsync(
                     context,
+                    startTimestamp,
+                    compiledSite: null,
+                    telemetry: null,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity,
+                    frebScope: null,
                     StatusCodes.Status400BadRequest,
                     "Bad Request",
-                    "RFC 9112 Section 5.4: A valid single Host header field is required.").ConfigureAwait(false);
-                return;
+                    "RFC 9112 Section 5.4: A valid single Host header field is required.");
             }
 
             // 2. Resolve Site via lock-free HostRouteTable
@@ -280,37 +439,27 @@ public sealed class KiteRequestPipeline : IDisposable
                 localPort = string.Equals(context.Request.Scheme, "https", StringComparison.OrdinalIgnoreCase) ? 443 : 80;
             }
 
-            // Named local site wins; otherwise check active Edge Mesh peer hostnames before wildcard '*' fallback.
-            if (!routeTable.TryMatchNamedSite(localPort, rawHost.AsSpan(), out compiledSite) &&
-                _meshPeerResolver is not null)
+            // Named local site wins; otherwise check active Edge Mesh peer hostnames only when Mesh is enabled.
+            if (_meshPeerResolver is not null && routeTable.ServerConfig.Mesh.Mode != MeshMode.Disabled)
             {
-                ReadOnlySpan<char> meshHost = HostRouteTable.ExtractHostWithoutPort(rawHost.AsSpan());
-                if (!meshHost.IsEmpty)
+                if (!routeTable.TryMatchNamedSite(localPort, rawHost.AsSpan(), out compiledSite))
                 {
-                    string? peerTargetBase = _meshPeerResolver(localPort, new string(meshHost));
-                    if (!string.IsNullOrWhiteSpace(peerTargetBase))
+                    ReadOnlySpan<char> meshHost = HostRouteTable.ExtractHostWithoutPort(rawHost.AsSpan());
+                    if (!meshHost.IsEmpty)
                     {
-                        int hop = int.TryParse(context.Request.Headers["X-Kite-Mesh-Hop"], out int parsedHop) ? parsedHop : 0;
-                        if (hop >= 2)
+                        string? peerTargetBase = _meshPeerResolver(localPort, new string(meshHost));
+                        if (!string.IsNullOrWhiteSpace(peerTargetBase))
                         {
-                            await WriteProblemDetailsAsync(
+                            return HandleMeshPeerAsync(
                                 context,
-                                StatusCodes.Status508LoopDetected,
-                                "Mesh Routing Loop Detected",
-                                $"Local edge mesh hop limit exceeded for host '{rawHost}'.").ConfigureAwait(false);
-                            return;
+                                peerTargetBase,
+                                startTimestamp,
+                                rawHost,
+                                localPort,
+                                requestPath,
+                                routeTable,
+                                activity);
                         }
-
-                        HttpMessageInvoker invoker = _upstreamManager?.ProxyInvoker ?? _fallbackMeshInvoker;
-                        await HttpProxyForwarder.ForwardAsync(
-                            context,
-                            invoker,
-                            peerTargetBase,
-                            requestPath.AsMemory(),
-                            enableStreamingPassThrough: true,
-                            context.RequestAborted,
-                            preserveHostHeader: true).ConfigureAwait(false);
-                        return;
                     }
                 }
             }
@@ -318,37 +467,35 @@ public sealed class KiteRequestPipeline : IDisposable
             if (compiledSite is null &&
                 (!routeTable.TryMatchSite(localPort, rawHost.AsSpan(), out compiledSite) || compiledSite is null))
             {
-                // Allow RFC 8555 HTTP-01 challenge responses even before host bindings match
-                const string unmatchedAcmePrefix = "/.well-known/acme-challenge/";
-                if (_acmeChallengeResolver is not null &&
-                    requestPath.StartsWith(unmatchedAcmePrefix, StringComparison.Ordinal))
-                {
-                    string token = requestPath[unmatchedAcmePrefix.Length..];
-                    string? keyAuth = _acmeChallengeResolver(token);
-                    if (!string.IsNullOrEmpty(keyAuth))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status200OK;
-                        context.Response.ContentType = "text/plain; charset=utf-8";
-                        await context.Response.WriteAsync(keyAuth, context.RequestAborted).ConfigureAwait(false);
-                        return;
-                    }
-                }
-
-                await WriteProblemDetailsAsync(
+                return HandleUnmatchedSiteAsync(
                     context,
-                    StatusCodes.Status404NotFound,
-                    "Site Not Found",
-                    $"No active site binding matched port {localPort} and host '{rawHost}'.").ConfigureAwait(false);
-                return;
+                    startTimestamp,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity);
             }
 
             SiteConfig site = compiledSite.Site;
             CompiledSiteFeatures compiledFeatures = compiledSite.Features;
             SiteFeaturesConfig effective = compiledFeatures.EffectiveConfig;
+            PipelineActiveModules flags = compiledFeatures.ActiveModules;
 
-            telemetry = GetSiteTelemetry(site.Id);
-            Interlocked.Increment(ref telemetry.TotalRequests);
-            frebScope.RecordStage("BeginRequest");
+            telemetry = ResolveSiteTelemetry(slot, site.Id, out siteSlot);
+            Volatile.Write(ref siteSlot.Requests, siteSlot.Requests + 1);
+            if ((flags & (PipelineActiveModules.FrebTracing | PipelineActiveModules.W3COrJsonLogging)) != 0 &&
+                startTimestamp == 0)
+            {
+                startTimestamp = Stopwatch.GetTimestamp();
+            }
+
+            if ((flags & PipelineActiveModules.FrebTracing) != 0)
+            {
+                frebScope = FrebScopePool.Get();
+                frebScope.Begin(startTimestamp);
+                frebScope.RecordStage("BeginRequest");
+            }
 
             // RFC 7838 / RFC 9114: Advertise HTTP/3 QUIC endpoint when enabled
             if (routeTable.ServerConfig.EnableAltSvcHeader &&
@@ -369,16 +516,23 @@ public sealed class KiteRequestPipeline : IDisposable
                 string? keyAuth = _acmeChallengeResolver(token);
                 if (!string.IsNullOrEmpty(keyAuth))
                 {
-                    context.Response.StatusCode = StatusCodes.Status200OK;
-                    context.Response.ContentType = "text/plain; charset=utf-8";
-                    await context.Response.WriteAsync(keyAuth, context.RequestAborted).ConfigureAwait(false);
-                    frebScope.RecordStage("AcmeHttp01Challenge", "Responded");
-                    return;
+                    return HandleAcmeChallengeAsync(
+                        context,
+                        keyAuth,
+                        startTimestamp,
+                        compiledSite,
+                        telemetry,
+                        rawHost,
+                        localPort,
+                        requestPath,
+                        routeTable,
+                        activity,
+                        frebScope);
                 }
             }
 
             // Automatic HTTP -> HTTPS canonical redirect (301/308) when configured on site TLS policy
-            if (!context.Request.IsHttps && effective.TlsPolicy.RedirectHttpToHttps)
+            if ((flags & PipelineActiveModules.HttpsRedirect) != 0 && !context.Request.IsHttps)
             {
                 int httpsPort = 443;
                 foreach (SiteBindingConfig b in site.Bindings)
@@ -401,12 +555,23 @@ public sealed class KiteRequestPipeline : IDisposable
                     ? effective.TlsPolicy.RedirectHttpToHttpsStatusCode
                     : StatusCodes.Status308PermanentRedirect;
                 context.Response.Headers["Location"] = location;
-                frebScope.RecordStage("HttpsRedirect", $"{context.Response.StatusCode} -> {location}");
-                return;
+                frebScope?.RecordStage("HttpsRedirect", $"{context.Response.StatusCode} -> {location}");
+                FinalizeRequest(
+                    context,
+                    startTimestamp,
+                    compiledSite,
+                    telemetry,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity,
+                    frebScope);
+                return Task.CompletedTask;
             }
 
             // Mutual TLS (mTLS) client certificate verification & trusted identity header injection
-            if (effective.TlsPolicy.Mtls.ClientCertificateMode != MtlsClientCertificateMode.None)
+            if ((flags & PipelineActiveModules.Mtls) != 0)
             {
                 context.Request.Headers.Remove("X-Kite-Client-Cert-Thumbprint");
                 context.Request.Headers.Remove("X-Kite-Client-Cert-Subject");
@@ -415,15 +580,21 @@ public sealed class KiteRequestPipeline : IDisposable
                 {
                     if (effective.TlsPolicy.Mtls.ClientCertificateMode == MtlsClientCertificateMode.RequireCertificate)
                     {
-                        frebScope.RecordStage("MtlsVerification", "403 Client Cert Required");
-                        await WriteErrorOrCustomPageAsync(
+                        frebScope?.RecordStage("MtlsVerification", "403 Client Cert Required");
+                        return WriteErrorAndFinalizeAsync(
                             context,
-                            site,
-                            compiledFeatures,
+                            startTimestamp,
+                            compiledSite,
+                            telemetry,
+                            rawHost,
+                            localPort,
+                            requestPath,
+                            routeTable,
+                            activity,
+                            frebScope,
                             StatusCodes.Status403Forbidden,
                             "Client Certificate Required",
-                            "A valid mutual-TLS client certificate is required.").ConfigureAwait(false);
-                        return;
+                            "A valid mutual-TLS client certificate is required.");
                     }
                 }
                 else
@@ -431,15 +602,21 @@ public sealed class KiteRequestPipeline : IDisposable
                     if (compiledFeatures.TrustedMtlsThumbprints.Count > 0 &&
                         !compiledFeatures.TrustedMtlsThumbprints.Contains(clientCert.Thumbprint))
                     {
-                        frebScope.RecordStage("MtlsVerification", "403 Untrusted Client Cert");
-                        await WriteErrorOrCustomPageAsync(
+                        frebScope?.RecordStage("MtlsVerification", "403 Untrusted Client Cert");
+                        return WriteErrorAndFinalizeAsync(
                             context,
-                            site,
-                            compiledFeatures,
+                            startTimestamp,
+                            compiledSite,
+                            telemetry,
+                            rawHost,
+                            localPort,
+                            requestPath,
+                            routeTable,
+                            activity,
+                            frebScope,
                             StatusCodes.Status403Forbidden,
                             "Untrusted Client Certificate",
-                            "Client certificate thumbprint is not authorized.").ConfigureAwait(false);
-                        return;
+                            "Client certificate thumbprint is not authorized.");
                     }
 
                     context.Request.Headers["X-Kite-Client-Cert-Thumbprint"] = clientCert.Thumbprint;
@@ -449,14 +626,27 @@ public sealed class KiteRequestPipeline : IDisposable
 
             // 3. Apply Site Security, CORS, Custom Headers & Removal List
             CustomHeadersAndCorsModule.ApplyResponseHeaders(context, compiledFeatures);
-            if (CustomHeadersAndCorsModule.TryApplyCorsAndHandlePreflight(context, compiledFeatures))
+            if ((flags & PipelineActiveModules.Cors) != 0 &&
+                CustomHeadersAndCorsModule.TryApplyCorsAndHandlePreflight(context, compiledFeatures))
             {
-                frebScope.RecordStage("CorsPreflight", "Completed");
-                return;
+                frebScope?.RecordStage("CorsPreflight", "Completed");
+                FinalizeRequest(
+                    context,
+                    startTimestamp,
+                    compiledSite,
+                    telemetry,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity,
+                    frebScope);
+                return Task.CompletedTask;
             }
 
             // 4. IP Restrictions & IIS-style Request Filtering Gate
-            if (!RequestFilteringAndIpGateModule.Evaluate(
+            if ((flags & PipelineActiveModules.IpOrRequestOrWafGate) != 0 &&
+                !RequestFilteringAndIpGateModule.Evaluate(
                     context,
                     compiledFeatures,
                     out int gateStatus,
@@ -464,83 +654,644 @@ public sealed class KiteRequestPipeline : IDisposable
                     out string gateTitle,
                     out string gateDetail))
             {
-                frebScope.SubStatus = subStatus;
+                if (frebScope is not null)
+                {
+                    frebScope.SubStatus = subStatus;
+                }
                 if (!string.IsNullOrEmpty(subStatus))
                 {
                     context.Response.Headers["X-Kite-SubStatus"] = subStatus;
                 }
-                frebScope.RecordStage("RequestFilteringAndIpGate", $"Rejected ({subStatus})");
-                await WriteErrorOrCustomPageAsync(context, site, compiledFeatures, gateStatus, gateTitle, gateDetail).ConfigureAwait(false);
-                return;
+                frebScope?.RecordStage("RequestFilteringAndIpGate", $"Rejected ({subStatus})");
+                return WriteErrorAndFinalizeAsync(
+                    context,
+                    startTimestamp,
+                    compiledSite,
+                    telemetry,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity,
+                    frebScope,
+                    gateStatus,
+                    gateTitle,
+                    gateDetail);
             }
 
-            (bool bodyAllowed, int bodyStatus, string bodySub, string bodyTitle, string bodyDetail) =
-                await RequestFilteringAndIpGateModule.EvaluateBodyAsync(context, compiledFeatures, context.RequestAborted).ConfigureAwait(false);
-            if (!bodyAllowed)
+            if ((flags & (PipelineActiveModules.WafBodyInspection | PipelineActiveModules.RateLimiting)) != 0)
             {
-                frebScope.SubStatus = bodySub;
-                if (!string.IsNullOrEmpty(bodySub))
-                {
-                    context.Response.Headers["X-Kite-SubStatus"] = bodySub;
-                }
-                frebScope.RecordStage("RequestFilteringAndIpGate", $"Body Rejected ({bodySub})");
-                await WriteErrorOrCustomPageAsync(context, site, compiledFeatures, bodyStatus, bodyTitle, bodyDetail).ConfigureAwait(false);
-                return;
+                return ExecuteAsyncFromBodyAndRateGateAsync(
+                    context,
+                    startTimestamp,
+                    compiledSite,
+                    telemetry,
+                    rawHost,
+                    localPort,
+                    requestPath,
+                    routeTable,
+                    activity,
+                    frebScope);
             }
-            frebScope.RecordStage("RequestFilteringAndIpGate");
 
-            // 4b. Edge Rate Limiting (429 Too Many Requests + Retry-After, local or distributed Redis)
-            (bool rateAllowed, int retryAfterSeconds) = await EdgeRateLimiterModule
-                .TryAcquireAsync(
-                    context,
-                    compiledFeatures,
-                    site.Id,
-                    _distributedStateAccessor?.Invoke(),
-                    context.RequestAborted)
-                .ConfigureAwait(false);
-            if (!rateAllowed)
-            {
-                frebScope.SubStatus = "429.1";
-                frebScope.RecordStage("EdgeRateLimiter", $"Throttled (Retry-After: {retryAfterSeconds}s)");
-                await WriteErrorOrCustomPageAsync(
-                    context,
-                    site,
-                    compiledFeatures,
-                    StatusCodes.Status429TooManyRequests,
-                    "Too Many Requests",
-                    $"Rate limit exceeded. Retry after {retryAfterSeconds} second(s).").ConfigureAwait(false);
-                return;
-            }
-            frebScope.RecordStage("EdgeRateLimiter");
+            frebScope?.RecordStage("RequestFilteringAndIpGate");
+            frebScope?.RecordStage("EdgeRateLimiter");
 
             // 4c. Hot-reloadable C# Edge Middleware Plugins
+            if (_pluginHost is not null && _pluginHost.LoadedCount > 0)
+            {
+                ValueTask<bool> pluginTask = _pluginHost.ExecuteAsync(context, context.RequestAborted);
+                if (!pluginTask.IsCompletedSuccessfully)
+                {
+                    return CompleteAfterAsyncPluginAsync(
+                        pluginTask,
+                        context,
+                        startTimestamp,
+                        compiledSite,
+                        telemetry,
+                        rawHost,
+                        localPort,
+                        requestPath,
+                        routeTable,
+                        activity,
+                        frebScope);
+                }
+
+                if (!pluginTask.Result)
+                {
+                    frebScope?.RecordStage("EdgePlugins", "Short-circuited");
+                    FinalizeRequest(
+                        context,
+                        startTimestamp,
+                        compiledSite,
+                        telemetry,
+                        rawHost,
+                        localPort,
+                        requestPath,
+                        routeTable,
+                        activity,
+                        frebScope,
+                        slot,
+                        siteSlot);
+                    return Task.CompletedTask;
+                }
+
+                frebScope?.RecordStage("EdgePlugins");
+            }
+
+            return ExecutePostPluginsAsync(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+        catch (OperationCanceledException)
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return HandleUnhandledSyncExceptionAsync(
+                ex,
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
+
+    private async Task HandleObservabilityAsync(
+        HttpContext context,
+        long startTimestamp,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity)
+    {
+        try
+        {
+            await KiteMetricsAndTracing.TryHandleObservabilityEndpointAsync(
+                context,
+                requestPath,
+                routeTable.ServerConfig,
+                this,
+                routeTable,
+                _upstreamManager).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope: null).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite: null,
+                telemetry: null,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope: null);
+        }
+    }
+
+    private async Task HandleMeshPeerAsync(
+        HttpContext context,
+        string peerTargetBase,
+        long startTimestamp,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity)
+    {
+        try
+        {
+            int hop = int.TryParse(context.Request.Headers["X-Kite-Mesh-Hop"], out int parsedHop) ? parsedHop : 0;
+            if (hop >= 2)
+            {
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status508LoopDetected,
+                    "Mesh Routing Loop Detected",
+                    $"Local edge mesh hop limit exceeded for host '{rawHost}'.").ConfigureAwait(false);
+                return;
+            }
+
+            HttpMessageInvoker invoker = _upstreamManager?.ProxyInvoker ?? _fallbackMeshInvoker;
+            await HttpProxyForwarder.ForwardAsync(
+                context,
+                invoker,
+                peerTargetBase,
+                requestPath.AsMemory(),
+                enableStreamingPassThrough: true,
+                context.RequestAborted,
+                preserveHostHeader: true).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope: null).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite: null,
+                telemetry: null,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope: null);
+        }
+    }
+
+    private async Task HandleUnmatchedSiteAsync(
+        HttpContext context,
+        long startTimestamp,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity)
+    {
+        try
+        {
+            // Allow RFC 8555 HTTP-01 challenge responses even before host bindings match
+            const string unmatchedAcmePrefix = "/.well-known/acme-challenge/";
+            if (_acmeChallengeResolver is not null &&
+                requestPath.StartsWith(unmatchedAcmePrefix, StringComparison.Ordinal))
+            {
+                string token = requestPath[unmatchedAcmePrefix.Length..];
+                string? keyAuth = _acmeChallengeResolver(token);
+                if (!string.IsNullOrEmpty(keyAuth))
+                {
+                    context.Response.StatusCode = StatusCodes.Status200OK;
+                    context.Response.ContentType = "text/plain; charset=utf-8";
+                    await context.Response.WriteAsync(keyAuth, context.RequestAborted).ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            await WriteProblemDetailsAsync(
+                context,
+                StatusCodes.Status404NotFound,
+                "Site Not Found",
+                $"No active site binding matched port {localPort} and host '{rawHost}'.").ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope: null).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite: null,
+                telemetry: null,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope: null);
+        }
+    }
+
+    private async Task HandleAcmeChallengeAsync(
+        HttpContext context,
+        string keyAuth,
+        long startTimestamp,
+        CompiledSiteRoute compiledSite,
+        SiteRuntimeTelemetry telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope)
+    {
+        try
+        {
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "text/plain; charset=utf-8";
+            await context.Response.WriteAsync(keyAuth, context.RequestAborted).ConfigureAwait(false);
+            frebScope?.RecordStage("AcmeHttp01Challenge", "Responded");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
+
+    private async Task WriteErrorAndFinalizeAsync(
+        HttpContext context,
+        long startTimestamp,
+        CompiledSiteRoute? compiledSite,
+        SiteRuntimeTelemetry? telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope,
+        int statusCode,
+        string title,
+        string detail)
+    {
+        try
+        {
+            if (compiledSite is not null)
+            {
+                await WriteErrorOrCustomPageAsync(
+                    context,
+                    compiledSite.Site,
+                    compiledSite.Features,
+                    statusCode,
+                    title,
+                    detail).ConfigureAwait(false);
+            }
+            else
+            {
+                await WriteProblemDetailsAsync(context, statusCode, title, detail).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
+
+    private async Task HandleUnhandledSyncExceptionAsync(
+        Exception ex,
+        HttpContext context,
+        long startTimestamp,
+        CompiledSiteRoute? compiledSite,
+        SiteRuntimeTelemetry? telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope)
+    {
+        try
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
+
+    private async Task ExecuteAsyncFromBodyAndRateGateAsync(
+        HttpContext context,
+        long startTimestamp,
+        CompiledSiteRoute compiledSite,
+        SiteRuntimeTelemetry telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope)
+    {
+        try
+        {
+            CompiledSiteFeatures compiledFeatures = compiledSite.Features;
+            SiteConfig site = compiledSite.Site;
+            PipelineActiveModules flags = compiledFeatures.ActiveModules;
+
+            if ((flags & PipelineActiveModules.WafBodyInspection) != 0)
+            {
+                (bool bodyAllowed, int bodyStatus, string bodySub, string bodyTitle, string bodyDetail) =
+                    await RequestFilteringAndIpGateModule.EvaluateBodyAsync(context, compiledFeatures, context.RequestAborted).ConfigureAwait(false);
+                if (!bodyAllowed)
+                {
+                    if (frebScope is not null)
+                    {
+                        frebScope.SubStatus = bodySub;
+                    }
+                    if (!string.IsNullOrEmpty(bodySub))
+                    {
+                        context.Response.Headers["X-Kite-SubStatus"] = bodySub;
+                    }
+                    frebScope?.RecordStage("RequestFilteringAndIpGate", $"Body Rejected ({bodySub})");
+                    await WriteErrorOrCustomPageAsync(context, site, compiledFeatures, bodyStatus, bodyTitle, bodyDetail).ConfigureAwait(false);
+                    return;
+                }
+            }
+            frebScope?.RecordStage("RequestFilteringAndIpGate");
+
+            if ((flags & PipelineActiveModules.RateLimiting) != 0)
+            {
+                (bool rateAllowed, int retryAfterSeconds) = await EdgeRateLimiterModule
+                    .TryAcquireAsync(
+                        context,
+                        compiledFeatures,
+                        site.Id,
+                        _distributedStateAccessor?.Invoke(),
+                        context.RequestAborted)
+                    .ConfigureAwait(false);
+                if (!rateAllowed)
+                {
+                    if (frebScope is not null)
+                    {
+                        frebScope.SubStatus = "429.1";
+                    }
+                    frebScope?.RecordStage("EdgeRateLimiter", $"Throttled (Retry-After: {retryAfterSeconds}s)");
+                    await WriteErrorOrCustomPageAsync(
+                        context,
+                        site,
+                        compiledFeatures,
+                        StatusCodes.Status429TooManyRequests,
+                        "Too Many Requests",
+                        $"Rate limit exceeded. Retry after {retryAfterSeconds} second(s).").ConfigureAwait(false);
+                    return;
+                }
+            }
+            frebScope?.RecordStage("EdgeRateLimiter");
+
             if (_pluginHost is not null && _pluginHost.LoadedCount > 0)
             {
                 bool pluginContinued = await _pluginHost.ExecuteAsync(context, context.RequestAborted).ConfigureAwait(false);
                 if (!pluginContinued)
                 {
-                    frebScope.RecordStage("EdgePlugins", "Short-circuited");
+                    frebScope?.RecordStage("EdgePlugins", "Short-circuited");
                     return;
                 }
-                frebScope.RecordStage("EdgePlugins");
+                frebScope?.RecordStage("EdgePlugins");
             }
 
-            // 5. URL Rewrite & Canonical Redirects
-            UrlRewriteOutcome rewriteOutcome = await UrlRewriteModule.ExecuteAsync(
+            await ExecutePostPluginsCoreAsync(
                 context,
-                compiledFeatures,
+                routeTable,
+                compiledSite,
+                telemetry,
                 rawHost,
-                context.RequestAborted).ConfigureAwait(false);
+                requestPath,
+                frebScope).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
 
-            if (rewriteOutcome == UrlRewriteOutcome.Responded)
+    private async Task CompleteAfterAsyncPluginAsync(
+        ValueTask<bool> pluginTask,
+        HttpContext context,
+        long startTimestamp,
+        CompiledSiteRoute compiledSite,
+        SiteRuntimeTelemetry telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope)
+    {
+        try
+        {
+            bool pluginContinued = await pluginTask.ConfigureAwait(false);
+            if (!pluginContinued)
             {
-                frebScope.RecordStage("UrlRewriteAndRouting", "Redirected");
+                frebScope?.RecordStage("EdgePlugins", "Short-circuited");
                 return;
             }
+            frebScope?.RecordStage("EdgePlugins");
 
-            if (rewriteOutcome == UrlRewriteOutcome.RewrittenInPlace)
+            await ExecutePostPluginsCoreAsync(
+                context,
+                routeTable,
+                compiledSite,
+                telemetry,
+                rawHost,
+                requestPath,
+                frebScope).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
+
+    private async Task ExecutePostPluginsAsync(
+        HttpContext context,
+        long startTimestamp,
+        CompiledSiteRoute compiledSite,
+        SiteRuntimeTelemetry telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope)
+    {
+        try
+        {
+            await ExecutePostPluginsCoreAsync(
+                context,
+                routeTable,
+                compiledSite,
+                telemetry,
+                rawHost,
+                requestPath,
+                frebScope).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            await HandleUnhandledExceptionAsync(ex, context, frebScope).ConfigureAwait(false);
+        }
+        finally
+        {
+            FinalizeRequest(
+                context,
+                startTimestamp,
+                compiledSite,
+                telemetry,
+                rawHost,
+                localPort,
+                requestPath,
+                routeTable,
+                activity,
+                frebScope);
+        }
+    }
+
+    private async Task ExecutePostPluginsCoreAsync(
+        HttpContext context,
+        HostRouteTable routeTable,
+        CompiledSiteRoute compiledSite,
+        SiteRuntimeTelemetry telemetry,
+        string rawHost,
+        string requestPath,
+        FrebTraceScope? frebScope)
+    {
+        SiteConfig site = compiledSite.Site;
+        CompiledSiteFeatures compiledFeatures = compiledSite.Features;
+        SiteFeaturesConfig effective = compiledFeatures.EffectiveConfig;
+        PipelineActiveModules flags = compiledFeatures.ActiveModules;
+        var routeCtx = KiteObjectPools.RouteContextPool.Get();
+
+        try
+        {
+            // 5. URL Rewrite & Canonical Redirects
+            if ((flags & PipelineActiveModules.UrlRewriteOrRedirect) != 0)
             {
-                requestPath = context.Request.Path.Value ?? "/";
+                UrlRewriteOutcome rewriteOutcome = await UrlRewriteModule.ExecuteAsync(
+                    context,
+                    compiledFeatures,
+                    rawHost,
+                    context.RequestAborted).ConfigureAwait(false);
+
+                if (rewriteOutcome == UrlRewriteOutcome.Responded)
+                {
+                    frebScope?.RecordStage("UrlRewriteAndRouting", "Redirected");
+                    return;
+                }
+
+                if (rewriteOutcome == UrlRewriteOutcome.RewrittenInPlace)
+                {
+                    requestPath = context.Request.Path.Value ?? "/";
+                }
             }
 
             // 6. Resolve Nested Application, Virtual Directory & Declarative Route Rules
@@ -579,10 +1330,11 @@ public sealed class KiteRequestPipeline : IDisposable
                     });
                 }
             }
-            frebScope.RecordStage("UrlRewriteAndRouting");
+            frebScope?.RecordStage("UrlRewriteAndRouting");
 
             // 7. Edge Authentication (Anonymous / JWT / API Key / Basic) + ForwardAuth (ext_authz)
-            if (!EdgeAuthenticationModule.Authenticate(
+            if ((flags & PipelineActiveModules.Authentication) != 0 &&
+                !EdgeAuthenticationModule.Authenticate(
                     context,
                     compiledFeatures,
                     _timeProvider,
@@ -594,7 +1346,7 @@ public sealed class KiteRequestPipeline : IDisposable
                 {
                     context.Response.Headers["WWW-Authenticate"] = wwwAuth;
                 }
-                frebScope.RecordStage("AuthenticateRequest", "401 Unauthorized");
+                frebScope?.RecordStage("AuthenticateRequest", "401 Unauthorized");
                 await WriteErrorOrCustomPageAsync(
                     context,
                     site,
@@ -605,7 +1357,7 @@ public sealed class KiteRequestPipeline : IDisposable
                 return;
             }
 
-            if (effective.ForwardAuth.Enabled)
+            if ((flags & PipelineActiveModules.ForwardAuth) != 0)
             {
                 (bool fwdAllowed, int fwdStatus, string? fwdWwwAuth, string? fwdErr) =
                     await EdgeAuthenticationModule.EvaluateForwardAuthAsync(
@@ -620,7 +1372,7 @@ public sealed class KiteRequestPipeline : IDisposable
                     {
                         context.Response.Headers["WWW-Authenticate"] = fwdWwwAuth;
                     }
-                    frebScope.RecordStage("ForwardAuth", $"{fwdStatus} Rejected");
+                    frebScope?.RecordStage("ForwardAuth", $"{fwdStatus} Rejected");
                     await WriteErrorOrCustomPageAsync(
                         context,
                         site,
@@ -630,9 +1382,9 @@ public sealed class KiteRequestPipeline : IDisposable
                         fwdErr ?? "ForwardAuth rejected request.").ConfigureAwait(false);
                     return;
                 }
-                frebScope.RecordStage("ForwardAuth");
+                frebScope?.RecordStage("ForwardAuth");
             }
-            frebScope.RecordStage("AuthenticateRequest");
+            frebScope?.RecordStage("AuthenticateRequest");
 
             // 7b. Fault Injection & Chaos Testing (after auth gates, before upstream dispatch)
             if (matchedRoute?.FaultInjection is { Enabled: true } fi)
@@ -653,7 +1405,7 @@ public sealed class KiteRequestPipeline : IDisposable
                     {
                         context.Response.Headers[setResp.Key] = setResp.Value;
                     }
-                    frebScope.RecordStage("FaultInjection", $"Aborted ({abortStatus})");
+                    frebScope?.RecordStage("FaultInjection", $"Aborted ({abortStatus})");
                     await WriteErrorOrCustomPageAsync(
                         context,
                         site,
@@ -689,14 +1441,14 @@ public sealed class KiteRequestPipeline : IDisposable
             if (context.WebSockets.IsWebSocketRequest)
             {
                 await HandleWebSocketRequestAsync(context, telemetry).ConfigureAwait(false);
-                frebScope.RecordStage("ExecuteRequestHandler", "WebSocket");
+                frebScope?.RecordStage("ExecuteRequestHandler", "WebSocket");
                 return;
             }
 
             // 10. Output Cache generation & unsafe method invalidation (RFC 9111 Section 4.4)
             _outputCache.EnsureGeneration(site.Id, effective.Caching.FlushGeneration);
 
-            if (IsUnsafeMethod(context.Request.Method) && effective.Caching.Enabled)
+            if (effective.Caching.Enabled && IsUnsafeMethod(context.Request.Method))
             {
                 _outputCache.InvalidateByUri(site.Id, requestPath, context.Request.QueryString.Value ?? "");
             }
@@ -720,12 +1472,12 @@ public sealed class KiteRequestPipeline : IDisposable
                     cached is not null)
                 {
                     Interlocked.Increment(ref telemetry.CacheHits);
-                    frebScope.RecordStage("ResolveRequestCache", "Cache HIT");
+                    frebScope?.RecordStage("ResolveRequestCache", "Cache HIT");
                     await ServeCachedEntryAsync(context, cached, ageSeconds, telemetry).ConfigureAwait(false);
                     return;
                 }
             }
-            frebScope.RecordStage("ResolveRequestCache");
+            frebScope?.RecordStage("ResolveRequestCache");
 
             // 13. Dispatch either Static / Virtual Directory or Application Pool / Route Cluster Workload
             bool routeOverridesDynamic = matchedRoute is not null &&
@@ -761,143 +1513,193 @@ public sealed class KiteRequestPipeline : IDisposable
                     matchedRoute).ConfigureAwait(false);
             }
 
-            frebScope.RecordStage("ExecuteRequestHandler");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            frebScope.CaptureException(ex);
-            frebScope.RecordStage("ExecuteRequestHandler", "CRASH / Unhandled Exception");
-            if (!context.Response.HasStarted)
-            {
-                try
-                {
-                    await WriteProblemDetailsAsync(
-                        context,
-                        StatusCodes.Status500InternalServerError,
-                        "Internal Server Error",
-                        ex.Message).ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-            }
+            frebScope?.RecordStage("ExecuteRequestHandler");
         }
         finally
         {
-            frebScope.RecordStage("SendResponse");
-            double elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+            KiteObjectPools.RouteContextPool.Return(routeCtx);
+        }
+    }
+
+    private static async Task HandleUnhandledExceptionAsync(Exception ex, HttpContext context, FrebTraceScope? frebScope)
+    {
+        frebScope?.CaptureException(ex);
+        frebScope?.RecordStage("ExecuteRequestHandler", "CRASH / Unhandled Exception");
+        if (!context.Response.HasStarted)
+        {
+            try
+            {
+                await WriteProblemDetailsAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "Internal Server Error",
+                    ex.Message).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private void FinalizeRequest(
+        HttpContext context,
+        long startTimestamp,
+        CompiledSiteRoute? compiledSite,
+        SiteRuntimeTelemetry? telemetry,
+        string rawHost,
+        int localPort,
+        string requestPath,
+        HostRouteTable routeTable,
+        Activity? activity,
+        FrebTraceScope? frebScope,
+        ThreadTelemetrySlot? slot = null,
+        SiteThreadCounter? siteSlot = null)
+    {
+        ThreadTelemetrySlot activeSlot = slot ?? GetThreadSlot();
+        SiteThreadCounter? activeSiteSlot = siteSlot;
+        if (activeSiteSlot is null && telemetry is not null)
+        {
+            activeSiteSlot = ReferenceEquals(activeSlot.LastSite, telemetry)
+                ? activeSlot.LastSiteSlot
+                : telemetry.ThreadCounters.Value;
+        }
+
+        double elapsedMs = 0.0;
+        if (startTimestamp != 0)
+        {
+            elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
             _globalLatency.Record(elapsedMs);
-
-            int finalStatus = context.Response.StatusCode;
-            RecordStatusClass(finalStatus, telemetry);
             telemetry?.Latency.Record(elapsedMs);
+        }
 
+        int finalStatus = context.Response.StatusCode;
+        RecordStatusClass(finalStatus, activeSlot, activeSiteSlot);
+
+        if (frebScope is not null ||
+            activity is not null ||
+            (compiledSite is not null && (compiledSite.Features.ActiveModules & PipelineActiveModules.W3COrJsonLogging) != 0))
+        {
+            frebScope?.RecordStage("SendResponse");
             if (compiledSite is not null)
             {
-                AccessLogFormat logFormat = routeTable.ServerConfig.Observability.AccessLogFormat;
-                bool emitW3C = compiledSite.Features.EffectiveConfig.W3CLoggingEnabled &&
-                               (logFormat == AccessLogFormat.W3C || logFormat == AccessLogFormat.Both);
-                bool emitJson = compiledSite.Features.EffectiveConfig.W3CLoggingEnabled &&
-                                (logFormat == AccessLogFormat.Json || logFormat == AccessLogFormat.Both);
-
-                DateTimeOffset logNow = _timeProvider.GetUtcNow();
-                ReadOnlySpan<char> clientIpSpan = (context.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1").AsSpan();
-                ReadOnlySpan<char> querySpan = (context.Request.QueryString.Value ?? "").AsSpan();
-                long bytesSent = context.Response.ContentLength ?? 0;
-
-                if (emitW3C && _w3cLogSink is not null)
+                if ((compiledSite.Features.ActiveModules & PipelineActiveModules.W3COrJsonLogging) != 0)
                 {
-                    string line = W3CAccessLogFormatter.FormatLinePooled(
-                        logNow,
-                        clientIpSpan,
-                        context.Request.Method.AsSpan(),
-                        requestPath.AsSpan(),
-                        querySpan,
-                        localPort,
-                        rawHost.AsSpan(),
-                        finalStatus,
-                        bytesSent,
-                        (long)elapsedMs);
-                    _w3cLogSink(compiledSite.Site.Id, line);
-                }
+                    AccessLogFormat logFormat = routeTable.ServerConfig.Observability.AccessLogFormat;
+                    bool emitW3C = _w3cLogSink is not null &&
+                                   (logFormat == AccessLogFormat.W3C || logFormat == AccessLogFormat.Both);
+                    bool emitJson = _jsonLogSink is not null &&
+                                    (logFormat == AccessLogFormat.Json || logFormat == AccessLogFormat.Both);
 
-                if (emitJson && _jsonLogSink is not null)
-                {
-                    string traceId = activity?.TraceId.ToHexString() ?? string.Empty;
-                    string jsonLine = StructuredJsonLogFormatter.FormatLinePooled(
-                        logNow,
-                        compiledSite.Site.Id,
-                        clientIpSpan,
-                        context.Request.Method.AsSpan(),
-                        requestPath.AsSpan(),
-                        querySpan,
-                        localPort,
-                        rawHost.AsSpan(),
-                        context.Request.Protocol.AsSpan(),
-                        finalStatus,
-                        bytesSent,
-                        (long)elapsedMs,
-                        traceId.AsSpan());
-                    _jsonLogSink(compiledSite.Site.Id, jsonLine);
-                }
-
-                if (activity is not null)
-                {
-                    activity.SetTag("http.response.status_code", finalStatus);
-                    if (finalStatus >= 500)
+                    if (emitW3C || emitJson)
                     {
-                        activity.SetStatus(ActivityStatusCode.Error);
+                        DateTimeOffset logNow = _timeProvider.GetUtcNow();
+                        ReadOnlySpan<char> clientIpSpan = (context.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1").AsSpan();
+                        ReadOnlySpan<char> querySpan = (context.Request.QueryString.Value ?? "").AsSpan();
+                        long bytesSent = context.Response.ContentLength ?? 0;
+
+                        if (emitW3C)
+                        {
+                            string line = W3CAccessLogFormatter.FormatLinePooled(
+                                logNow,
+                                clientIpSpan,
+                                context.Request.Method.AsSpan(),
+                                requestPath.AsSpan(),
+                                querySpan,
+                                localPort,
+                                rawHost.AsSpan(),
+                                finalStatus,
+                                bytesSent,
+                                (long)elapsedMs);
+                            _w3cLogSink!(compiledSite.Site.Id, line);
+                        }
+
+                        if (emitJson)
+                        {
+                            string traceId = activity?.TraceId.ToHexString() ?? string.Empty;
+                            string jsonLine = StructuredJsonLogFormatter.FormatLinePooled(
+                                logNow,
+                                compiledSite.Site.Id,
+                                clientIpSpan,
+                                context.Request.Method.AsSpan(),
+                                requestPath.AsSpan(),
+                                querySpan,
+                                localPort,
+                                rawHost.AsSpan(),
+                                context.Request.Protocol.AsSpan(),
+                                finalStatus,
+                                bytesSent,
+                                (long)elapsedMs,
+                                traceId.AsSpan());
+                            _jsonLogSink!(compiledSite.Site.Id, jsonLine);
+                        }
                     }
                 }
 
-                // FREB Diagnostic Capture
-                if (_frebSink is not null && frebScope.ShouldEmitTrace(compiledSite.Features, finalStatus, elapsedMs))
+                if (frebScope is not null)
                 {
-                    FrebTraceRecord trace = frebScope.BuildRecord(
-                        context,
-                        compiledSite.Site.Id,
-                        rawHost,
-                        _timeProvider.GetUtcNow(),
-                        elapsedMs,
-                        compiledSite.Features);
-                    _frebSink(trace);
+                    if (_frebSink is not null && frebScope.ShouldEmitTrace(compiledSite.Features, finalStatus, elapsedMs))
+                    {
+                        FrebTraceRecord trace = frebScope.BuildRecord(
+                            context,
+                            compiledSite.Site.Id,
+                            rawHost,
+                            _timeProvider.GetUtcNow(),
+                            elapsedMs,
+                            compiledSite.Features);
+                        _frebSink(trace);
+                    }
+
+                    FrebScopePool.Return(frebScope);
                 }
             }
+            else if (frebScope is not null)
+            {
+                FrebScopePool.Return(frebScope);
+            }
 
-            FrebScopePool.Return(frebScope);
-            KiteObjectPools.RouteContextPool.Return(routeCtx);
-            Interlocked.Decrement(ref _activeConnections);
+            if (activity is not null)
+            {
+                activity.SetTag("http.response.status_code", finalStatus);
+                if (finalStatus >= 500)
+                {
+                    activity.SetStatus(ActivityStatusCode.Error);
+                }
+                activity.Dispose();
+            }
         }
+
+        Volatile.Write(ref activeSlot.Completed, activeSlot.Completed + 1);
     }
 
-    private void RecordStatusClass(int statusCode, SiteRuntimeTelemetry? telemetry)
+    private static void RecordStatusClass(int statusCode, ThreadTelemetrySlot slot, SiteThreadCounter? siteSlot)
     {
         if (statusCode is >= 200 and < 300)
         {
-            Interlocked.Increment(ref _interval2xx);
-            if (telemetry is not null) Interlocked.Increment(ref telemetry.Status2xxCount);
+            Volatile.Write(ref slot.Status2xx, slot.Status2xx + 1);
+            if (siteSlot is not null) Volatile.Write(ref siteSlot.Status2xx, siteSlot.Status2xx + 1);
         }
         else if (statusCode is >= 300 and < 400)
         {
-            Interlocked.Increment(ref _interval3xx);
-            if (telemetry is not null) Interlocked.Increment(ref telemetry.Status3xxCount);
+            Volatile.Write(ref slot.Status3xx, slot.Status3xx + 1);
+            if (siteSlot is not null) Volatile.Write(ref siteSlot.Status3xx, siteSlot.Status3xx + 1);
         }
         else if (statusCode is >= 400 and < 500)
         {
-            Interlocked.Increment(ref _interval4xx);
-            if (telemetry is not null) Interlocked.Increment(ref telemetry.Status4xxCount);
+            Volatile.Write(ref slot.Status4xx, slot.Status4xx + 1);
+            if (siteSlot is not null) Volatile.Write(ref siteSlot.Status4xx, siteSlot.Status4xx + 1);
         }
         else if (statusCode >= 500)
         {
-            Interlocked.Increment(ref _interval5xx);
-            if (telemetry is not null) Interlocked.Increment(ref telemetry.Status5xxCount);
+            Volatile.Write(ref slot.Status5xx, slot.Status5xx + 1);
+            if (siteSlot is not null) Volatile.Write(ref siteSlot.Status5xx, siteSlot.Status5xx + 1);
         }
     }
 
-    private static bool ValidateHostHeader(HttpRequest request, out string rawHost)
+    private static bool ValidateHostHeader(HttpRequest request, ThreadTelemetrySlot slot, out string rawHost)
     {
-        rawHost = string.Empty;
-        if (!request.Headers.TryGetValue("Host", out StringValues hostValues))
+        StringValues hostValues = request.Headers.Host;
+        int count = hostValues.Count;
+        if (count == 0)
         {
             // HTTP/2 may populate request.Host via :authority pseudo-header
             if (request.Host.HasValue)
@@ -905,21 +1707,31 @@ public sealed class KiteRequestPipeline : IDisposable
                 rawHost = request.Host.Value!;
                 return true;
             }
+            rawHost = string.Empty;
             return false;
         }
 
         // RFC 9112 Section 5.4: MUST respond 400 to any request with more than one Host header field
-        if (hostValues.Count != 1)
+        if (count != 1)
         {
+            rawHost = string.Empty;
             return false;
         }
 
         string single = hostValues[0] ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(single) || single.Contains(' ') || single.Contains('\t') || single.Contains('/'))
+        if (ReferenceEquals(slot.LastValidatedHost, single))
         {
+            rawHost = single;
+            return true;
+        }
+
+        if (single.Length == 0 || single.AsSpan().ContainsAny(InvalidHostChars))
+        {
+            rawHost = string.Empty;
             return false;
         }
 
+        slot.LastValidatedHost = single;
         rawHost = single;
         return true;
     }

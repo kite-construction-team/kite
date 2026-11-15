@@ -207,9 +207,19 @@ public sealed class HostRouteTable
         private readonly FrozenDictionary<string, CompiledSiteRoute>.AlternateLookup<ReadOnlySpan<char>> _spanLookup =
             namedHosts.GetAlternateLookup<ReadOnlySpan<char>>();
 
+        public bool HasNamedHosts { get; } = namedHosts.Count > 0;
+
         public CompiledSiteRoute? WildcardRoute { get; } = wildcardRoute;
 
-        public bool TryGetByHost(ReadOnlySpan<char> hostName, out CompiledSiteRoute? route) =>
-            _spanLookup.TryGetValue(hostName, out route);
+        public bool TryGetByHost(ReadOnlySpan<char> hostName, out CompiledSiteRoute? route)
+        {
+            if (!HasNamedHosts)
+            {
+                route = null;
+                return false;
+            }
+
+            return _spanLookup.TryGetValue(hostName, out route);
+        }
     }
 }

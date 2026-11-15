@@ -1,0 +1,25 @@
+{
+  "$schema": "https://kite.local/schemas/site.v1.json",
+  "configVersion": "1.0",
+  "id": "default-site",
+  "name": "TechEmpower IPC Site",
+  "desiredState": "Started",
+  "bindings": [
+    {
+      "protocol": "http",
+      "ipAddress": "*",
+      "port": 8080,
+      "host": "*"
+    }
+  ],
+  "rootApplication": {
+    "path": "/",
+    "poolId": "default-pool",
+    "physicalPath": "/app/app",
+    "entryPoint": "Kite.TechEmpower.App.dll",
+    "hostingMode": "KiteWorkerIpc"
+  },
+  "features": {
+    "inheritServerDefaults": true
+  }
+}

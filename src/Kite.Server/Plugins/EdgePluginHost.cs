@@ -17,16 +17,7 @@ public sealed class EdgePluginHost : IDisposable
     private readonly Dictionary<string, LoadedPluginEntry> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private LoadedPluginEntry[] _orderedPipeline = [];
 
-    public int LoadedCount
-    {
-        get
-        {
-            lock (_syncLock)
-            {
-                return _orderedPipeline.Length;
-            }
-        }
-    }
+    public int LoadedCount => Volatile.Read(ref _orderedPipeline).Length;
 
     public void Reconcile(IReadOnlyList<EdgePluginConfig> configs, string pluginsDirectory)
     {
@@ -96,9 +87,28 @@ public sealed class EdgePluginHost : IDisposable
     /// Executes all loaded plugins in ascending <c>Order</c>.
     /// Returns <see langword="false"/> if a plugin short-circuited the HTTP response.
     /// </summary>
-    public async ValueTask<bool> ExecuteAsync(HttpContext context, CancellationToken ct)
+    public ValueTask<bool> ExecuteAsync(HttpContext context, CancellationToken ct)
     {
         LoadedPluginEntry[] snapshot = Volatile.Read(ref _orderedPipeline);
+        if (snapshot.Length == 0)
+        {
+            return ValueTask.FromResult(true);
+        }
+
+        if (snapshot.Length == 1)
+        {
+            LoadedPluginEntry single = snapshot[0];
+            return single.Instance.InvokeAsync(context, single.Config.Settings, ct);
+        }
+
+        return ExecuteMultiAsync(snapshot, context, ct);
+    }
+
+    private static async ValueTask<bool> ExecuteMultiAsync(
+        LoadedPluginEntry[] snapshot,
+        HttpContext context,
+        CancellationToken ct)
+    {
         for (int i = 0; i < snapshot.Length; i++)
         {
             LoadedPluginEntry entry = snapshot[i];

@@ -80,7 +80,19 @@ public sealed class KiteWorkerHostEngine : IAsyncDisposable
         _appLoadContext = new AssemblyLoadContext($"KiteApp_{_options.PoolId}_{_options.WorkerId}", isCollectible: true);
         Assembly loaded = _appLoadContext.LoadFromAssemblyPath(Path.GetFullPath(candidatePath));
         Type? handlerType = loaded.GetType("KiteHostedApp.EntryPoint", throwOnError: false, ignoreCase: true);
-        _entryDiagnosticMethod = handlerType?.GetMethod("HandleRequest", BindingFlags.Public | BindingFlags.Static);
+
+        MethodInfo? fastHttpMethod = handlerType?.GetMethod(
+            "HandleHttpAsync",
+            BindingFlags.Public | BindingFlags.Static,
+            [typeof(KiteIpcRequestHeader), typeof(Stream), typeof(KiteIpcResponseHeader), typeof(Stream), typeof(CancellationToken)]);
+        if (fastHttpMethod is not null && fastHttpMethod.ReturnType == typeof(ValueTask))
+        {
+            _customHandler = fastHttpMethod.CreateDelegate<Func<KiteIpcRequestHeader, Stream, KiteIpcResponseHeader, Stream, CancellationToken, ValueTask>>();
+        }
+        else
+        {
+            _entryDiagnosticMethod = handlerType?.GetMethod("HandleRequest", BindingFlags.Public | BindingFlags.Static);
+        }
     }
 
     private async Task RunPipeListenerLoopAsync(CancellationToken ct)
@@ -99,8 +111,10 @@ public sealed class KiteWorkerHostEngine : IAsyncDisposable
 
                 await serverPipe.WaitForConnectionAsync(ct).ConfigureAwait(false);
 
-                // Handle persistent connection in background so this listener slot can accept or process
-                await ProcessPersistentConnectionAsync(serverPipe, ct).ConfigureAwait(false);
+                // Hand off persistent connection so this listener slot immediately accepts the next client
+                NamedPipeServerStream connectedPipe = serverPipe;
+                serverPipe = null;
+                _ = Task.Run(() => HandleAcceptedPipeAsync(connectedPipe, ct), CancellationToken.None);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -121,14 +135,35 @@ public sealed class KiteWorkerHostEngine : IAsyncDisposable
         }
     }
 
+    private async Task HandleAcceptedPipeAsync(NamedPipeServerStream pipe, CancellationToken ct)
+    {
+        try
+        {
+            await ProcessPersistentConnectionAsync(pipe, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+        }
+        finally
+        {
+            await pipe.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
     private async Task ProcessPersistentConnectionAsync(NamedPipeServerStream pipe, CancellationToken ct)
     {
+        var readStream = new BufferedStream(pipe, 16384);
+        var writeStream = new BufferedStream(pipe, 16384);
+
         while (pipe.IsConnected && !ct.IsCancellationRequested)
         {
             KiteIpcMessageType? msgType;
             try
             {
-                msgType = await KiteIpcProtocol.ReadMessageTypeAsync(pipe, ct).ConfigureAwait(false);
+                msgType = await KiteIpcProtocol.ReadMessageTypeAsync(readStream, ct).ConfigureAwait(false);
             }
             catch (EndOfStreamException)
             {
@@ -146,8 +181,8 @@ public sealed class KiteWorkerHostEngine : IAsyncDisposable
 
             if (msgType == KiteIpcMessageType.Ping)
             {
-                await KiteIpcProtocol.WriteMessageTypeAsync(pipe, KiteIpcMessageType.Pong, ct).ConfigureAwait(false);
-                await pipe.FlushAsync(ct).ConfigureAwait(false);
+                await KiteIpcProtocol.WriteMessageTypeAsync(writeStream, KiteIpcMessageType.Pong, ct).ConfigureAwait(false);
+                await writeStream.FlushAsync(ct).ConfigureAwait(false);
                 continue;
             }
 
@@ -160,15 +195,16 @@ public sealed class KiteWorkerHostEngine : IAsyncDisposable
 
                 try
                 {
-                    await KiteIpcProtocol.ReadRequestHeaderAsync(pipe, reqHeader, ct).ConfigureAwait(false);
-                    await KiteIpcProtocol.ReadBodyFramesToAsync(pipe, reqBody, ct).ConfigureAwait(false);
+                    await KiteIpcProtocol.ReadRequestHeaderAsync(readStream, reqHeader, ct).ConfigureAwait(false);
+                    await KiteIpcProtocol.ReadBodyFramesToAsync(readStream, reqBody, ct).ConfigureAwait(false);
                     reqBody.Position = 0;
 
                     respHeader.Reset();
                     await DispatchApplicationRequestAsync(reqHeader, reqBody, respHeader, respBody, ct).ConfigureAwait(false);
 
                     respBody.Position = 0;
-                    await KiteIpcProtocol.WriteResponseMessageAsync(pipe, respHeader, respBody, ct).ConfigureAwait(false);
+                    await KiteIpcProtocol.WriteResponseMessageAsync(writeStream, respHeader, respBody, ct).ConfigureAwait(false);
+                    await writeStream.FlushAsync(ct).ConfigureAwait(false);
                 }
                 finally
                 {

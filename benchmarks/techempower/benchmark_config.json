@@ -1,0 +1,60 @@
+{
+  "framework": "kite",
+  "tests": [
+    {
+      "default": {
+        "plaintext_url": "/plaintext",
+        "json_url": "/json",
+        "db_url": "/db",
+        "query_url": "/queries/",
+        "fortune_url": "/fortunes",
+        "update_url": "/updates/",
+        "cached_query_url": "/cached-worlds/",
+        "port": 8080,
+        "approach": "Realistic",
+        "classification": "Fullstack",
+        "database": "Postgres",
+        "framework": "Kite",
+        "language": "C#",
+        "orm": "Raw",
+        "platform": ".NET",
+        "flavor": "CoreCLR",
+        "webserver": "Kestrel",
+        "os": "Linux",
+        "database_os": "Linux",
+        "display_name": "Kite [Edge Plugin]",
+        "notes": "Kite Web Server (HostRouteTable + HTTP Modules + Edge Plugin + Npgsql)"
+      },
+      "ipc": {
+        "plaintext_url": "/plaintext",
+        "json_url": "/json",
+        "port": 8080,
+        "approach": "Realistic",
+        "classification": "Fullstack",
+        "framework": "Kite",
+        "language": "C#",
+        "platform": ".NET",
+        "flavor": "CoreCLR",
+        "webserver": "Kestrel",
+        "os": "Linux",
+        "display_name": "Kite [Worker IPC]",
+        "notes": "Kite Web Server + KiteWorkerIpc binary NamedPipe/UDS + AssemblyLoadContext"
+      },
+      "proxy": {
+        "plaintext_url": "/plaintext",
+        "json_url": "/json",
+        "port": 8080,
+        "approach": "Realistic",
+        "classification": "Fullstack",
+        "framework": "Kite",
+        "language": "C#",
+        "platform": ".NET",
+        "flavor": "CoreCLR",
+        "webserver": "Kestrel",
+        "os": "Linux",
+        "display_name": "Kite [Out-Of-Process Proxy]",
+        "notes": "Kite Web Server reverse-proxying localhost HTTP to Kite.TechEmpower.App"
+      }
+    }
+  ]
+}

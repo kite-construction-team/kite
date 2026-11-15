@@ -51,21 +51,30 @@ public static class CustomHeadersAndCorsModule
         return false;
     }
 
+    private static readonly StringValues ServerHeaderValue = new("Kite/2.0");
+    private static readonly StringValues NoSniffHeaderValue = new("nosniff");
+
     public static void ApplyResponseHeaders(HttpContext context, CompiledSiteFeatures compiled)
     {
         SiteFeaturesConfig features = compiled.EffectiveConfig;
+        PipelineActiveModules flags = compiled.ActiveModules;
         IHeaderDictionary headers = context.Response.Headers;
+        int initialCount = headers.Count;
 
         if (!features.StripServerHeader)
         {
-            headers["Server"] = "Kite/2.0";
+            headers.Server = ServerHeaderValue;
         }
-        else
+        else if (initialCount > 0)
         {
             headers.Remove("Server");
         }
 
-        headers.TryAdd("X-Content-Type-Options", "nosniff");
+        if ((flags & PipelineActiveModules.SuppressXContentTypeOptions) == 0 &&
+            (initialCount == 0 || !headers.ContainsKey("X-Content-Type-Options")))
+        {
+            headers.XContentTypeOptions = NoSniffHeaderValue;
+        }
 
         if (features.Hsts.Enabled)
         {
@@ -74,17 +83,25 @@ public static class CustomHeadersAndCorsModule
                     ? $"max-age={features.Hsts.MaxAgeSeconds}; includeSubDomains; preload"
                     : $"max-age={features.Hsts.MaxAgeSeconds}; includeSubDomains")
                 : $"max-age={features.Hsts.MaxAgeSeconds}";
-            headers["Strict-Transport-Security"] = hstsValue;
+            headers.StrictTransportSecurity = hstsValue;
         }
 
-        foreach (KeyValuePair<string, string> custom in features.CustomHeaders)
+        if ((flags & PipelineActiveModules.CustomHeaders) != 0)
         {
-            headers[custom.Key] = custom.Value;
+            foreach (KeyValuePair<string, string> custom in features.CustomHeaders)
+            {
+                headers[custom.Key] = custom.Value;
+            }
         }
 
-        for (int i = 0; i < features.RemoveHeaders.Count; i++)
+        if ((flags & PipelineActiveModules.RemoveHeaders) != 0 &&
+            headers.Count > 0 &&
+            (initialCount > 0 || (flags & PipelineActiveModules.CustomHeaders) != 0 || features.Hsts.Enabled))
         {
-            headers.Remove(features.RemoveHeaders[i]);
+            for (int i = 0; i < features.RemoveHeaders.Count; i++)
+            {
+                headers.Remove(features.RemoveHeaders[i]);
+            }
         }
     }
 }

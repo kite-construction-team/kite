@@ -739,7 +739,7 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
         ReadOnlyMemory<char> subPath,
         CancellationToken ct)
     {
-        NamedPipeClientStream pipe = await slot.RentPipeConnectionAsync(ct).ConfigureAwait(false);
+        PooledIpcPipeConnection pipeConn = await slot.RentPipeConnectionAsync(ct).ConfigureAwait(false);
         KiteIpcRequestHeader reqHeader = _ipcReqPool.Get();
         KiteIpcResponseHeader respHeader = _ipcRespPool.Get();
         bool returnPipe = true;
@@ -750,14 +750,21 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
             reqHeader.Method = context.Request.Method;
             reqHeader.Scheme = context.Request.Scheme;
             reqHeader.Host = context.Request.Host.Value ?? "localhost";
-            reqHeader.Path = new string(subPath.Span);
+            string? reqPathVal = context.Request.Path.Value;
+            reqHeader.Path = reqPathVal is not null && subPath.Span.Equals(reqPathVal.AsSpan(), StringComparison.Ordinal)
+                ? reqPathVal
+                : new string(subPath.Span);
             reqHeader.QueryString = context.Request.QueryString.Value ?? "";
-            reqHeader.RemoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+            System.Net.IPAddress? remoteAddr = context.Connection.RemoteIpAddress;
+            reqHeader.RemoteIp = remoteAddr is null || System.Net.IPAddress.IsLoopback(remoteAddr)
+                ? (remoteAddr?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? "::1" : "127.0.0.1")
+                : remoteAddr.ToString();
             reqHeader.RemotePort = context.Connection.RemotePort;
 
             foreach (KeyValuePair<string, StringValues> header in context.Request.Headers)
             {
-                reqHeader.Headers.Add(new KeyValuePair<string, string>(header.Key, header.Value.ToString()));
+                string val = header.Value.Count == 1 ? (header.Value[0] ?? string.Empty) : header.Value.ToString();
+                reqHeader.Headers.Add(new KeyValuePair<string, string>(header.Key, val));
             }
 
             // Inject RFC 7239 Forwarded header
@@ -765,26 +772,28 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
                 "Forwarded",
                 $"for=\"{reqHeader.RemoteIp}\";proto={reqHeader.Scheme};host=\"{reqHeader.Host}\""));
 
-            Stream? bodyStream = context.Request.ContentLength > 0 || context.Request.Headers.ContainsKey("Transfer-Encoding")
+            Stream? bodyStream = context.Request.ContentLength > 0 || context.Request.Headers.TransferEncoding.Count > 0
                 ? context.Request.Body
                 : null;
-            await KiteIpcProtocol.WriteRequestMessageAsync(pipe, reqHeader, bodyStream, ct).ConfigureAwait(false);
+            await KiteIpcProtocol.WriteRequestMessageAsync(pipeConn.WriteStream, reqHeader, bodyStream, ct).ConfigureAwait(false);
+            await pipeConn.WriteStream.FlushAsync(ct).ConfigureAwait(false);
 
-            await KiteIpcProtocol.ReadResponseHeaderAsync(pipe, respHeader, ct).ConfigureAwait(false);
+            await KiteIpcProtocol.ReadResponseHeaderAsync(pipeConn.ReadStream, respHeader, ct).ConfigureAwait(false);
             context.Response.StatusCode = respHeader.StatusCode;
 
+            IHeaderDictionary respHeaders = context.Response.Headers;
             for (int i = 0; i < respHeader.Headers.Count; i++)
             {
                 KeyValuePair<string, string> h = respHeader.Headers[i];
-                context.Response.Headers[h.Key] = h.Value;
+                respHeaders[h.Key] = h.Value;
             }
 
-            await KiteIpcProtocol.ReadBodyFramesToAsync(pipe, context.Response.Body, ct).ConfigureAwait(false);
+            await KiteIpcProtocol.ReadBodyFramesToAsync(pipeConn.ReadStream, context.Response.Body, ct).ConfigureAwait(false);
         }
         catch
         {
             returnPipe = false;
-            await pipe.DisposeAsync().ConfigureAwait(false);
+            await pipeConn.DisposeAsync().ConfigureAwait(false);
             throw;
         }
         finally
@@ -796,7 +805,7 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
 
             if (returnPipe)
             {
-                slot.ReturnPipeConnection(pipe);
+                slot.ReturnPipeConnection(pipeConn);
             }
         }
     }
@@ -927,9 +936,18 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
         _lifecycleLock.Dispose();
     }
 
+    private sealed class PooledIpcPipeConnection(NamedPipeClientStream pipe) : IAsyncDisposable
+    {
+        public NamedPipeClientStream Pipe { get; } = pipe;
+        public BufferedStream ReadStream { get; } = new(pipe, 16384);
+        public BufferedStream WriteStream { get; } = new(pipe, 16384);
+        public bool IsConnected => Pipe.IsConnected;
+        public ValueTask DisposeAsync() => Pipe.DisposeAsync();
+    }
+
     private sealed class ManagedWorkerSlot : IAsyncDisposable
     {
-        private readonly ConcurrentBag<NamedPipeClientStream> _pipePool = [];
+        private readonly ConcurrentBag<PooledIpcPipeConnection> _pipePool = [];
         private readonly SocketsHttpHandler _socketsHandler;
 
         public ManagedWorkerSlot(IWorkerInstance worker)
@@ -1053,9 +1071,9 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
             return Math.Round(Math.Clamp(pct, 0.0, 100.0), 1);
         }
 
-        public async ValueTask<NamedPipeClientStream> RentPipeConnectionAsync(CancellationToken ct)
+        public async ValueTask<PooledIpcPipeConnection> RentPipeConnectionAsync(CancellationToken ct)
         {
-            while (_pipePool.TryTake(out NamedPipeClientStream? existing))
+            while (_pipePool.TryTake(out PooledIpcPipeConnection? existing))
             {
                 if (existing.IsConnected)
                 {
@@ -1066,26 +1084,26 @@ public sealed class ApplicationPoolSupervisor : IAsyncDisposable
 
             var client = new NamedPipeClientStream(".", Worker.TransportAddress, PipeDirection.InOut, PipeOptions.Asynchronous);
             await client.ConnectAsync(3000, ct).ConfigureAwait(false);
-            return client;
+            return new PooledIpcPipeConnection(client);
         }
 
-        public void ReturnPipeConnection(NamedPipeClientStream pipe)
+        public void ReturnPipeConnection(PooledIpcPipeConnection pipeConn)
         {
-            if (!IsDraining && pipe.IsConnected)
+            if (!IsDraining && pipeConn.IsConnected)
             {
-                _pipePool.Add(pipe);
+                _pipePool.Add(pipeConn);
             }
             else
             {
-                pipe.Dispose();
+                pipeConn.Pipe.Dispose();
             }
         }
 
         public async ValueTask DisposeAsync()
         {
-            while (_pipePool.TryTake(out NamedPipeClientStream? pipe))
+            while (_pipePool.TryTake(out PooledIpcPipeConnection? pipeConn))
             {
-                await pipe.DisposeAsync().ConfigureAwait(false);
+                await pipeConn.DisposeAsync().ConfigureAwait(false);
             }
             HttpInvoker.Dispose();
             await Worker.DisposeAsync().ConfigureAwait(false);

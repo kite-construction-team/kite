@@ -1,0 +1,24 @@
+{
+  "$schema": "https://kite.local/schemas/site.v1.json",
+  "configVersion": "1.0",
+  "id": "default-site",
+  "name": "TechEmpower Site",
+  "desiredState": "Started",
+  "bindings": [
+    {
+      "protocol": "http",
+      "ipAddress": "*",
+      "port": 8080,
+      "host": "*"
+    }
+  ],
+  "rootApplication": {
+    "path": "/",
+    "poolId": "default-pool",
+    "physicalPath": "/app/kite-data/wwwroot",
+    "hostingMode": "StaticOnly"
+  },
+  "features": {
+    "inheritServerDefaults": true
+  }
+}
