@@ -149,6 +149,23 @@ jobs:
       - name: Generate SHA256SUMS.txt and update manifests
         shell: pwsh
         run: |
+          Write-Host "Inspecting downloaded dist/ tree:"
+          Get-ChildItem -Path dist -Recurse -File | ForEach-Object {
+            Write-Host "  $($_.FullName) ($($_.Length) bytes)"
+          }
+
+          $flatDir = Join-Path $env:RUNNER_TEMP "flat-dist"
+          if (Test-Path $flatDir) { Remove-Item -Recurse -Force $flatDir }
+          New-Item -ItemType Directory -Force -Path $flatDir | Out-Null
+
+          Get-ChildItem -Path dist -Recurse -File |
+            Where-Object { $_.Extension -in ".zip", ".gz" } |
+            ForEach-Object { Copy-Item -Path $_.FullName -Destination (Join-Path $flatDir $_.Name) -Force }
+
+          Remove-Item -Recurse -Force dist
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Get-ChildItem -Path $flatDir -File | Move-Item -Destination dist
+
           $lines = @(Get-ChildItem -Path dist -File |
             Where-Object { $_.Extension -in ".zip", ".gz" } |
             Sort-Object Name |
@@ -156,8 +173,12 @@ jobs:
               $h = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
               "$h  $($_.Name)"
             })
-          $sumsContent = if ($lines.Count -gt 0) { ($lines -join "`n") + "`n" } else { "" }
+          if ($lines.Count -eq 0) {
+            throw "No release archives (.zip / .tar.gz) found in dist/ after download-artifact."
+          }
+          $sumsContent = ($lines -join "`n") + "`n"
           [System.IO.File]::WriteAllText("dist/SHA256SUMS.txt", $sumsContent, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "SHA256SUMS.txt contents:`n$sumsContent"
           ./scripts/update-packaging-manifests.ps1 -Version "${{ needs.resolve-version.outputs.version }}" -DistDir "dist"
 
       - uses: actions/upload-artifact@v7
