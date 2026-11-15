@@ -10,6 +10,11 @@ on:
         description: 'Semantic version (e.g. 1.0.0)'
         required: true
         default: '1.0.0'
+      publish_release:
+        description: 'Create GitHub Release and tag when triggered manually'
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: write
@@ -117,12 +122,18 @@ jobs:
           "$TMP_DIR/kite" init --home "$HOME_DIR"
           "$TMP_DIR/kite" validate --home "$HOME_DIR"
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload standard archive artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: dist-${{ matrix.rid }}
-          path: |
-            dist/*.zip
-            dist/*.tar.gz
+          path: dist/kite-v${{ needs.resolve-version.outputs.version }}-${{ matrix.rid }}.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
+          archive: false
+
+      - name: Upload portable zip artifact
+        if: matrix.portable
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/kite-v${{ needs.resolve-version.outputs.version }}-${{ matrix.rid }}-portable.zip
+          archive: false
 
   release:
     needs: [resolve-version, publish]
@@ -131,7 +142,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v8
         with:
-          pattern: dist-*
+          pattern: kite-v*
           merge-multiple: true
           path: dist
 
@@ -155,10 +166,11 @@ jobs:
           path: packaging/
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: |
             dist/*.zip
