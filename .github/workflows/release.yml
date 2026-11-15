@@ -145,6 +145,7 @@ jobs:
           pattern: kite-v*
           merge-multiple: true
           path: dist
+          skip-decompress: true
 
       - name: Generate SHA256SUMS.txt and update manifests
         shell: pwsh
@@ -160,7 +161,10 @@ jobs:
 
           Get-ChildItem -Path dist -Recurse -File |
             Where-Object { $_.Extension -in ".zip", ".gz" } |
-            ForEach-Object { Copy-Item -Path $_.FullName -Destination (Join-Path $flatDir $_.Name) -Force }
+            ForEach-Object {
+              $targetName = $_.Name -replace '\.zip\.zip$', '.zip'
+              Copy-Item -Path $_.FullName -Destination (Join-Path $flatDir $targetName) -Force
+            }
 
           Remove-Item -Recurse -Force dist
           New-Item -ItemType Directory -Force -Path dist | Out-Null
