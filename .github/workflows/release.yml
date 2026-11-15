@@ -14,6 +14,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   resolve-version:
     runs-on: ubuntu-latest
@@ -36,8 +39,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - run: dotnet test tests/Kite.UnitTests/Kite.UnitTests.csproj -c Release
@@ -76,8 +79,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -114,7 +117,7 @@ jobs:
           "$TMP_DIR/kite" init --home "$HOME_DIR"
           "$TMP_DIR/kite" validate --home "$HOME_DIR"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-${{ matrix.rid }}
           path: |
@@ -125,8 +128,8 @@ jobs:
     needs: [resolve-version, publish]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
           merge-multiple: true
@@ -146,14 +149,14 @@ jobs:
           [System.IO.File]::WriteAllText("dist/SHA256SUMS.txt", $sumsContent, [System.Text.UTF8Encoding]::new($false))
           ./scripts/update-packaging-manifests.ps1 -Version "${{ needs.resolve-version.outputs.version }}" -DistDir "dist"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: updated-packaging-manifests
           path: packaging/
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
           generate_release_notes: true
