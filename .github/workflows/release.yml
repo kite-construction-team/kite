@@ -138,13 +138,13 @@ jobs:
       - name: Generate SHA256SUMS.txt and update manifests
         shell: pwsh
         run: |
-          $lines = Get-ChildItem -Path dist -File |
+          $lines = @(Get-ChildItem -Path dist -File |
             Where-Object { $_.Extension -in ".zip", ".gz" } |
             Sort-Object Name |
             ForEach-Object {
               $h = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
               "$h  $($_.Name)"
-            }
+            })
           $sumsContent = if ($lines.Count -gt 0) { ($lines -join "`n") + "`n" } else { "" }
           [System.IO.File]::WriteAllText("dist/SHA256SUMS.txt", $sumsContent, [System.Text.UTF8Encoding]::new($false))
           ./scripts/update-packaging-manifests.ps1 -Version "${{ needs.resolve-version.outputs.version }}" -DistDir "dist"

@@ -151,13 +151,13 @@ if (Test-Path $stagingRoot) {
     Remove-Item -Recurse -Force $stagingRoot
 }
 
-$checksumLines = Get-ChildItem -Path $outRoot -File |
+$checksumLines = @(Get-ChildItem -Path $outRoot -File |
     Where-Object { $_.Name -ne "SHA256SUMS.txt" -and ($_.Extension -in ".zip", ".gz") } |
     Sort-Object Name |
     ForEach-Object {
         $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $($_.Name)"
-    }
+    })
 
 $sumsPath = Join-Path $outRoot "SHA256SUMS.txt"
 $sumsContent = if ($checksumLines.Count -gt 0) { ($checksumLines -join "`n") + "`n" } else { "" }
