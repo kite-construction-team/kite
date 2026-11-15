@@ -398,50 +398,71 @@ public sealed class RfcComplianceSuiteTests : IDisposable
         await using var supervisor = new ApplicationPoolSupervisor(poolCfg, workerLauncher, _fakeTime);
 
         string upstreamPipe = $"kite-spec-fwd-{Guid.NewGuid():N}";
-        WebApplicationBuilder upstreamBuilder = WebApplication.CreateSlimBuilder();
-        upstreamBuilder.Logging.ClearProviders();
-        if (OperatingSystem.IsWindows())
+        string? unixSockPath = OperatingSystem.IsWindows()
+            ? null
+            : Path.Combine(Path.GetTempPath(), $"kite-spec-fwd-{Guid.NewGuid():N}.sock");
+
+        try
         {
-            upstreamBuilder.WebHost.UseNamedPipes(options =>
+            WebApplicationBuilder upstreamBuilder = WebApplication.CreateSlimBuilder();
+            upstreamBuilder.Logging.ClearProviders();
+            if (OperatingSystem.IsWindows())
             {
-                options.CreateNamedPipeServerStream = static ctx => new System.IO.Pipes.NamedPipeServerStream(
-                    ctx.NamedPipeEndPoint.PipeName,
-                    System.IO.Pipes.PipeDirection.InOut,
-                    System.IO.Pipes.NamedPipeServerStream.MaxAllowedServerInstances,
-                    System.IO.Pipes.PipeTransmissionMode.Byte,
-                    System.IO.Pipes.PipeOptions.Asynchronous);
+                upstreamBuilder.WebHost.UseNamedPipes(options =>
+                {
+                    options.CreateNamedPipeServerStream = static ctx => new System.IO.Pipes.NamedPipeServerStream(
+                        ctx.NamedPipeEndPoint.PipeName,
+                        System.IO.Pipes.PipeDirection.InOut,
+                        System.IO.Pipes.NamedPipeServerStream.MaxAllowedServerInstances,
+                        System.IO.Pipes.PipeTransmissionMode.Byte,
+                        System.IO.Pipes.PipeOptions.Asynchronous);
+                });
+                upstreamBuilder.WebHost.ConfigureKestrel(k => k.ListenNamedPipe(upstreamPipe));
+            }
+            else
+            {
+                upstreamBuilder.WebHost.ConfigureKestrel(k => k.ListenUnixSocket(unixSockPath!));
+            }
+
+            await using WebApplication upstream = upstreamBuilder.Build();
+            upstream.Run(async ctx =>
+            {
+                capturedForwardedHeader = ctx.Request.Headers["Forwarded"].ToString();
+                ctx.Response.StatusCode = 200;
+                await ctx.Response.WriteAsync("ok");
             });
+            await upstream.StartAsync();
+
+            var appCfg = new SiteApplicationConfig
+            {
+                Path = "/api",
+                PoolId = "fwd-pool",
+                HostingMode = WorkloadHostingMode.ExternalReverseProxy,
+                UpstreamUrl = OperatingSystem.IsWindows()
+                    ? $"http://{upstreamPipe}.pipe.local"
+                    : $"unix://{unixSockPath}"
+            };
+
+            await supervisor.StartOrReconcileAsync(poolCfg, appCfg);
+
+            DefaultHttpContext ctx = CreateContext("GET", "/api/test");
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.42");
+            await supervisor.ForwardHttpAsync(ctx, appCfg, "/test".AsMemory());
+
+            Assert.NotNull(capturedForwardedHeader);
+            Assert.Contains("for=\"203.0.113.42\"", capturedForwardedHeader);
+            Assert.Contains("proto=http", capturedForwardedHeader);
+            Assert.Contains("host=\"example.local:8080\"", capturedForwardedHeader);
+
+            await upstream.StopAsync();
         }
-        upstreamBuilder.WebHost.ConfigureKestrel(k => k.ListenNamedPipe(upstreamPipe));
-        await using WebApplication upstream = upstreamBuilder.Build();
-        upstream.Run(async ctx =>
+        finally
         {
-            capturedForwardedHeader = ctx.Request.Headers["Forwarded"].ToString();
-            ctx.Response.StatusCode = 200;
-            await ctx.Response.WriteAsync("ok");
-        });
-        await upstream.StartAsync();
-
-        var appCfg = new SiteApplicationConfig
-        {
-            Path = "/api",
-            PoolId = "fwd-pool",
-            HostingMode = WorkloadHostingMode.ExternalReverseProxy,
-            UpstreamUrl = $"http://{upstreamPipe}.pipe.local"
-        };
-
-        await supervisor.StartOrReconcileAsync(poolCfg, appCfg);
-
-        DefaultHttpContext ctx = CreateContext("GET", "/api/test");
-        ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.42");
-        await supervisor.ForwardHttpAsync(ctx, appCfg, "/test".AsMemory());
-
-        Assert.NotNull(capturedForwardedHeader);
-        Assert.Contains("for=\"203.0.113.42\"", capturedForwardedHeader);
-        Assert.Contains("proto=http", capturedForwardedHeader);
-        Assert.Contains("host=\"example.local:8080\"", capturedForwardedHeader);
-
-        await upstream.StopAsync();
+            if (unixSockPath is not null)
+            {
+                try { File.Delete(unixSockPath); } catch { }
+            }
+        }
     }
 
     [RfcFact("RFC 6455", "4.2", "RFC6455-4.2-MUST-1")]
